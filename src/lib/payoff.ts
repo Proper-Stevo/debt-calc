@@ -1,6 +1,6 @@
 import { Card } from '@/types/card';
 
-export type Strategy = 'avalanche' | 'snowball';
+export type Strategy = 'avalanche' | 'snowball' | 'creditBuilder';
 
 export interface PayoffOrderEntry {
   cardId: string;
@@ -18,21 +18,40 @@ export interface PayoffResult {
   payoffOrder: PayoffOrderEntry[];
 }
 
+// A card's utilization ratio: how much of its limit is currently used.
+// Cards without a credit limit set can't have utilization calculated, so we
+// treat them as 0 - meaning this strategy simply won't prioritize them over
+// cards where we do know the ratio.
+function utilization(card: Card): number {
+  if (!card.creditLimit || card.creditLimit <= 0) return 0;
+  return card.balance / card.creditLimit;
+}
+
 // Picks which card gets the "extra" payment this round, based on strategy.
-// Avalanche = highest APR first. Snowball = smallest balance first.
-function pickTarget(cards: Card[], strategy: Strategy): Card {
+// Avalanche = highest APR first (saves the most interest).
+// Snowball = smallest balance first (fastest individual wins).
+// Credit Builder = highest utilization ratio first (helps your credit score fastest).
+// Exported so the UI can show "pay this card first" without re-running the full simulation.
+export function pickTarget(cards: Card[], strategy: Strategy): Card {
   if (strategy === 'avalanche') {
     return cards.reduce((worst, c) => (c.apr > worst.apr ? c : worst), cards[0]);
+  }
+  if (strategy === 'creditBuilder') {
+    return cards.reduce((worst, c) => (utilization(c) > utilization(worst) ? c : worst), cards[0]);
   }
   return cards.reduce((smallest, c) => (c.balance < smallest.balance ? c : smallest), cards[0]);
 }
 
 // Simulates paying off all cards month-by-month using the given strategy.
 // extraPayment = money beyond the sum of all minimum payments, put toward the target card each month.
+// forcedFirstCardId, if provided, overrides the strategy's automatic pick - that
+// card gets the extra payment first regardless of strategy, until it's paid off,
+// after which the strategy's normal logic resumes for the rest.
 export function calculatePayoff(
   initialCards: Card[],
   strategy: Strategy,
-  extraPayment: number
+  extraPayment: number,
+  forcedFirstCardId?: string
 ): PayoffResult {
   // Work on a copy so we don't mutate the real card data.
   let remaining = initialCards.map((c) => ({ ...c }));
@@ -71,8 +90,11 @@ export function calculatePayoff(
     });
 
     // Step 3: dump the extra pool onto the target card.
+    // If a forced card was chosen and is still owing, it always wins - otherwise
+    // the strategy's normal rule decides.
     if (remaining.length > 0) {
-      const target = pickTarget(remaining, strategy);
+      const forced = forcedFirstCardId ? remaining.find((c) => c.id === forcedFirstCardId) : undefined;
+      const target = forced ?? pickTarget(remaining, strategy);
       const payment = Math.min(extraPool, target.balance);
       target.balance -= payment;
     }

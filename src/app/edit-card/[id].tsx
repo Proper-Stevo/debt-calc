@@ -1,19 +1,20 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable, Alert } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Pressable, Alert, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { getCard, updateCard, deleteCard } from '@/lib/storage';
 
 export default function EditCardScreen() {
-  // useLocalSearchParams reads the dynamic part of the URL - in this case, the card's id.
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [name, setName] = useState('');
   const [balance, setBalance] = useState('');
   const [apr, setApr] = useState('');
   const [minPayment, setMinPayment] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [closingDate, setClosingDate] = useState('');
+  const [creditLimit, setCreditLimit] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // On mount, load the existing card's data and pre-fill the form.
   useEffect(() => {
     getCard(id).then((card) => {
       if (card) {
@@ -21,6 +22,9 @@ export default function EditCardScreen() {
         setBalance(card.balance.toString());
         setApr(card.apr.toString());
         setMinPayment(card.minPayment.toString());
+        setDueDate(card.dueDate?.toString() ?? '');
+        setClosingDate(card.closingDate?.toString() ?? '');
+        setCreditLimit(card.creditLimit?.toString() ?? '');
       }
       setLoading(false);
     });
@@ -40,12 +44,32 @@ export default function EditCardScreen() {
       return;
     }
 
+    const dueDateNum = dueDate.trim() ? parseInt(dueDate, 10) : undefined;
+    const closingDateNum = closingDate.trim() ? parseInt(closingDate, 10) : undefined;
+    const creditLimitNum = creditLimit.trim() ? parseFloat(creditLimit) : undefined;
+
+    if (dueDateNum !== undefined && (isNaN(dueDateNum) || dueDateNum < 1 || dueDateNum > 31)) {
+      Alert.alert('Invalid due date', 'Please enter a day between 1 and 31.');
+      return;
+    }
+    if (closingDateNum !== undefined && (isNaN(closingDateNum) || closingDateNum < 1 || closingDateNum > 31)) {
+      Alert.alert('Invalid closing date', 'Please enter a day between 1 and 31.');
+      return;
+    }
+    if (creditLimitNum !== undefined && isNaN(creditLimitNum)) {
+      Alert.alert('Invalid credit limit', 'Please enter a valid number.');
+      return;
+    }
+
     await updateCard({
       id,
       name: name.trim(),
       balance: balanceNum,
       apr: aprNum,
       minPayment: minPaymentNum,
+      dueDate: dueDateNum,
+      closingDate: closingDateNum,
+      creditLimit: creditLimitNum,
     });
 
     router.back();
@@ -65,10 +89,10 @@ export default function EditCardScreen() {
     ]);
   }
 
-  if (loading) return null; // brief flash while data loads - fine for now
+  if (loading) return null;
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.label}>Card name</Text>
       <TextInput style={styles.input} value={name} onChangeText={setName} />
 
@@ -81,6 +105,20 @@ export default function EditCardScreen() {
       <Text style={styles.label}>Minimum payment ($)</Text>
       <TextInput style={styles.input} value={minPayment} onChangeText={setMinPayment} keyboardType="decimal-pad" />
 
+      <Text style={styles.sectionLabel}>Optional details</Text>
+
+      <Text style={styles.label}>Credit limit ($)</Text>
+      <TextInput style={styles.input} value={creditLimit} onChangeText={setCreditLimit} keyboardType="decimal-pad" />
+
+      <Text style={styles.label}>Due date (day of month, 1-31)</Text>
+      <TextInput style={styles.input} value={dueDate} onChangeText={setDueDate} keyboardType="number-pad" />
+
+      <Text style={styles.label}>Statement closing date (day of month, 1-31)</Text>
+      <Text style={styles.hint}>
+        The day your billing cycle ends - this is the balance reported to credit bureaus.
+      </Text>
+      <TextInput style={styles.input} value={closingDate} onChangeText={setClosingDate} keyboardType="number-pad" />
+
       <Pressable style={styles.saveButton} onPress={handleSave}>
         <Text style={styles.saveButtonText}>Save changes</Text>
       </Pressable>
@@ -88,13 +126,23 @@ export default function EditCardScreen() {
       <Pressable style={styles.deleteButton} onPress={handleDelete}>
         <Text style={styles.deleteButtonText}>Delete card</Text>
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
+  container: { flex: 1 },
+  content: { padding: 16, paddingBottom: 40 },
   label: { fontSize: 13, color: '#666', marginBottom: 4, marginTop: 12 },
+  hint: { fontSize: 12, color: '#999', marginBottom: 6 },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+    marginTop: 24,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
   input: {
     borderWidth: 1,
     borderColor: '#ddd',
