@@ -1,0 +1,251 @@
+import { useEffect, useState } from 'react';
+import { View, Text, TextInput, StyleSheet, Pressable, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+    hasPin,
+    setPin,
+    clearPin,
+    verifyPin,
+    isBiometricAvailable,
+    tryBiometricUnlock,
+} from '@/lib/auth';
+import { clearCards } from '@/lib/storage';
+import { AuthContext } from '@/lib/auth-context';
+
+type Mode = 'loading' | 'welcome' | 'create' | 'confirm' | 'loggedOut' | 'locked' | 'unlocked';
+
+export default function AuthGate({ children }: { children: React.ReactNode }) {
+    const [mode, setMode] = useState<Mode>('loading');
+    const [input, setInput] = useState('');
+    const [firstPin, setFirstPin] = useState(''); // holds the PIN during the "confirm" step
+    const [biometricAvailable, setBiometricAvailable] = useState(false);
+
+    // On mount, figure out which screen to show first.
+    useEffect(() => {
+        (async () => {
+            const pinExists = await hasPin();
+            if (!pinExists) {
+                setMode('welcome'); // brand new user - show intro before asking for a PIN
+                return;
+            }
+            const bioAvailable = await isBiometricAvailable();
+            setBiometricAvailable(bioAvailable);
+            setMode('locked');
+            if (bioAvailable) {
+                attemptBiometric();
+            }
+        })();
+    }, []);
+
+    async function attemptBiometric() {
+        const success = await tryBiometricUnlock();
+        if (success) setMode('unlocked');
+    }
+
+    function handleCreateSubmit() {
+        if (input.length < 4) {
+            Alert.alert('PIN too short', 'Please enter at least 4 digits.');
+            return;
+        }
+        setFirstPin(input);
+        setInput('');
+        setMode('confirm');
+    }
+
+    async function handleConfirmSubmit() {
+        if (input !== firstPin) {
+            Alert.alert('PINs don\u2019t match', 'Please try again.');
+            setInput('');
+            setMode('create');
+            setFirstPin('');
+            return;
+        }
+        await setPin(input);
+        setInput('');
+        setMode('unlocked');
+    }
+
+    async function handleUnlockSubmit() {
+        const correct = await verifyPin(input);
+        if (correct) {
+            setInput('');
+            setMode('unlocked');
+        } else {
+            Alert.alert('Incorrect PIN', 'Please try again.');
+            setInput('');
+        }
+    }
+
+    // Called from elsewhere in the app (e.g. Home) via context. Instead of jumping
+    // straight back to PIN entry, this shows a choice screen: log back in, or
+    // start over as a new user.
+    function logOut() {
+        setInput('');
+        setMode('loggedOut');
+    }
+
+    function goToLogin() {
+        setMode('locked');
+        if (biometricAvailable) attemptBiometric();
+    }
+
+    async function resetApp() {
+        await clearPin();
+        await clearCards();
+        setInput('');
+        setFirstPin('');
+        setBiometricAvailable(false);
+        setMode('welcome'); // treat this like a genuinely fresh start, intro screen included
+    }
+
+    // Nothing here is tied to a real account, so resetting is low-stakes - the
+    // only real consequence is losing locally saved cards.
+    function confirmNewUser() {
+        Alert.alert(
+            'Start as a new user?',
+            'This will clear your saved cards and let you set a new PIN.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Start fresh', onPress: resetApp },
+            ]
+        );
+    }
+
+    if (mode === 'loading') return null;
+
+    if (mode === 'unlocked') {
+        return <AuthContext.Provider value={{ lock: logOut, resetApp }}>{children}</AuthContext.Provider>;
+    }
+
+    return (
+        <SafeAreaView style={styles.container}>
+            {mode === 'welcome' && (
+                <>
+                    <Text style={styles.brand}>CreditHelper</Text>
+                    <Text style={styles.title}>Pay off your credit card debt, faster</Text>
+                    <Text style={styles.subtitle}>
+                        Track your cards, compare payoff strategies, and see exactly when
+                        you&apos;ll be debt-free. Everything stays on your device.
+                    </Text>
+                    <Pressable style={styles.button} onPress={() => setMode('create')}>
+                        <Text style={styles.buttonText}>Get started</Text>
+                    </Pressable>
+                </>
+            )}
+
+            {mode === 'create' && (
+                <>
+                    <Text style={styles.title}>Set up a PIN</Text>
+                    <Text style={styles.subtitle}>
+                        You&apos;ll be storing sensitive info here, like your card balances
+                        and interest rates. A PIN keeps it private to you.
+                    </Text>
+                    <TextInput
+                        style={styles.input}
+                        value={input}
+                        onChangeText={setInput}
+                        keyboardType="number-pad"
+                        secureTextEntry
+                        maxLength={6}
+                        autoFocus
+                    />
+                    <Pressable style={styles.button} onPress={handleCreateSubmit}>
+                        <Text style={styles.buttonText}>Continue</Text>
+                    </Pressable>
+                </>
+            )}
+
+            {mode === 'confirm' && (
+                <>
+                    <Text style={styles.title}>Confirm your PIN</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={input}
+                        onChangeText={setInput}
+                        keyboardType="number-pad"
+                        secureTextEntry
+                        maxLength={6}
+                        autoFocus
+                    />
+                    <Pressable style={styles.button} onPress={handleConfirmSubmit}>
+                        <Text style={styles.buttonText}>Confirm</Text>
+                    </Pressable>
+                </>
+            )}
+
+            {mode === 'loggedOut' && (
+                <>
+                    <Text style={styles.title}>You&apos;re logged out</Text>
+                    <Text style={styles.subtitle}>Log back in, or start over as a new user.</Text>
+                    <Pressable style={styles.button} onPress={goToLogin}>
+                        <Text style={styles.buttonText}>Log in</Text>
+                    </Pressable>
+                    <Pressable style={styles.secondaryButton} onPress={confirmNewUser}>
+                        <Text style={styles.secondaryButtonText}>Create new user</Text>
+                    </Pressable>
+                </>
+            )}
+
+            {mode === 'locked' && (
+                <>
+                    <Text style={styles.title}>Enter your PIN</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={input}
+                        onChangeText={setInput}
+                        keyboardType="number-pad"
+                        secureTextEntry
+                        maxLength={6}
+                        autoFocus
+                    />
+                    <Pressable style={styles.button} onPress={handleUnlockSubmit}>
+                        <Text style={styles.buttonText}>Unlock</Text>
+                    </Pressable>
+                    {biometricAvailable && (
+                        <Pressable style={styles.linkButton} onPress={attemptBiometric}>
+                            <Text style={styles.linkButtonText}>Use Face ID instead</Text>
+                        </Pressable>
+                    )}
+                    <Pressable style={styles.linkButton} onPress={confirmNewUser}>
+                        <Text style={styles.linkButtonText}>Forgot PIN? Start over</Text>
+                    </Pressable>
+                </>
+            )}
+        </SafeAreaView>
+    );
+}
+
+const styles = StyleSheet.create({
+    container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#fff' },
+    brand: { fontSize: 15, fontWeight: '600', textAlign: 'center', color: '#888', marginBottom: 24 },
+    title: { fontSize: 22, fontWeight: '600', textAlign: 'center', marginBottom: 8 },
+    subtitle: { fontSize: 14, color: '#888', textAlign: 'center', marginBottom: 24, lineHeight: 20 },
+    input: {
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 10,
+        padding: 14,
+        fontSize: 20,
+        textAlign: 'center',
+        letterSpacing: 8,
+        marginBottom: 16,
+    },
+    button: {
+        backgroundColor: '#111',
+        borderRadius: 10,
+        padding: 14,
+        alignItems: 'center',
+    },
+    buttonText: { color: '#fff', fontSize: 16, fontWeight: '500' },
+    secondaryButton: {
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 10,
+        padding: 14,
+        alignItems: 'center',
+        marginTop: 12,
+    },
+    secondaryButtonText: { color: '#111', fontSize: 16, fontWeight: '500' },
+    linkButton: { marginTop: 16, alignItems: 'center' },
+    linkButtonText: { color: '#555', fontSize: 14 },
+});
