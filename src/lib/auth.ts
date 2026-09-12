@@ -36,7 +36,7 @@ export async function isBiometricAvailable(): Promise<boolean> {
 // Prompt the system Face ID / Touch ID dialog. Returns true if it succeeded.
 export async function tryBiometricUnlock(): Promise<boolean> {
   const result = await LocalAuthentication.authenticateAsync({
-    promptMessage: 'Unlock CreditHelper',
+    promptMessage: 'Unlock Nudge',
     fallbackLabel: 'Use PIN',
   });
   return result.success;

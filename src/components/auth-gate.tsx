@@ -21,7 +21,7 @@ const ONBOARDING_SLIDES = [
   },
   {
     title: 'Three ways to pay it off',
-    body: "Avalanche saves the most money. Snowball clears cards fastest. Credit Builder helps your score. Not sure which? Just add your cards - we'll suggest one for you.",
+    body: "Avalanche saves the most money. Snowball clears cards fastest. Nudge helps your score. Not sure which? Just add your cards - we'll suggest one for you.",
   },
   {
     title: 'Follow your plan',
@@ -131,19 +131,23 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {mode === 'welcome' && (
-        <>
-          <Text style={styles.brand}>CreditHelper</Text>
-          <Text style={styles.title}>Pay off your credit card debt, faster</Text>
-          <Text style={styles.subtitle}>
-            Track your cards, compare payoff strategies, and see exactly when
-            you&apos;ll be debt-free. Everything stays on your device.
-          </Text>
-          <Pressable style={styles.button} onPress={() => setMode('create')}>
-            <Text style={styles.buttonText}>Get started</Text>
-          </Pressable>
-        </>
-      )}
+   {mode === 'welcome' && (
+  <>
+    <Text style={styles.brand}>Nudge</Text>
+    <Text style={styles.title}>Pay off your credit card debt, faster</Text>
+    <Text style={styles.subtitle}>
+      Track your cards, compare payoff strategies, and see exactly when
+      you&apos;ll be debt-free. Everything stays on your device.
+    </Text>
+    <Text style={styles.disclaimer}>
+      This app gives general estimates based on info you enter and public
+      research - not financial or credit advice.
+    </Text>
+    <Pressable style={styles.button} onPress={() => setMode('create')}>
+      <Text style={styles.buttonText}>Get started</Text>
+    </Pressable>
+  </>
+)}
 
       {mode === 'create' && (
         <>
@@ -213,7 +217,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
       {mode === 'loggedOut' && (
         <>
-          <Text style={styles.brand}>CreditHelper</Text>
+          <Text style={styles.brand}>Nudge</Text>
           <Text style={styles.title}>Welcome</Text>
           <Text style={styles.subtitle}>Are you a returning user, or starting fresh?</Text>
           <Pressable style={styles.button} onPress={goToLogin}>
@@ -258,6 +262,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#fff' },
   brand: { fontSize: 15, fontWeight: '600', textAlign: 'center', color: '#888', marginBottom: 24 },
   title: { fontSize: 22, fontWeight: '600', textAlign: 'center', marginBottom: 8 },
+  disclaimer: { fontSize: 11, color: '#aaa', textAlign: 'center', marginBottom: 20, lineHeight: 15 },
   subtitle: { fontSize: 14, color: '#888', textAlign: 'center', marginBottom: 24, lineHeight: 20 },
   input: {
     borderWidth: 1,

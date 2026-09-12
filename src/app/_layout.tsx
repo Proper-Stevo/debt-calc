@@ -19,6 +19,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="add-card" options={{ presentation: 'modal', title: 'Add card' }} />
             <Stack.Screen name="edit-card/[id]" options={{ presentation: 'modal', title: 'Edit card' }} />
+            <Stack.Screen name="about" options={{ presentation: 'modal', title: 'About' }} />
           </Stack>
         </AuthGate>
       </ThemeProvider>

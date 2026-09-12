@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "CreditHelper",
-    "slug": "CreditHelper",
+    "name": "Nudge",
+    "slug": "Nudge",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "credithelper",
+    "scheme": "nudge",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"
