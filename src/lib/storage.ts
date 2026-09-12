@@ -16,16 +16,25 @@ export async function clearCards(): Promise<void> {
   await AsyncStorage.removeItem(CARDS_KEY);
 }
 
-// Whether the user has already dismissed the Plan tab's one-time intro card.
-const PLAN_INTRO_KEY = 'seen_plan_intro';
+// Whether the user has already dismissed a given Plan tab's one-time intro
+// card. Tracked per strategy (Avalanche/Snowball/Credit Builder) since each
+// tab works differently and deserves its own explanation.
+const PLAN_INTRO_KEY = 'seen_plan_intros';
 
-export async function hasSeenPlanIntro(): Promise<boolean> {
-  const seen = await AsyncStorage.getItem(PLAN_INTRO_KEY);
-  return seen === 'true';
+async function getPlanIntroMap(): Promise<Record<string, boolean>> {
+  const json = await AsyncStorage.getItem(PLAN_INTRO_KEY);
+  return json ? JSON.parse(json) : {};
 }
 
-export async function markPlanIntroSeen(): Promise<void> {
-  await AsyncStorage.setItem(PLAN_INTRO_KEY, 'true');
+export async function hasSeenPlanIntro(strategy: string): Promise<boolean> {
+  const map = await getPlanIntroMap();
+  return map[strategy] === true;
+}
+
+export async function markPlanIntroSeen(strategy: string): Promise<void> {
+  const map = await getPlanIntroMap();
+  map[strategy] = true;
+  await AsyncStorage.setItem(PLAN_INTRO_KEY, JSON.stringify(map));
 }
 
 export async function clearPlanIntroFlag(): Promise<void> {
@@ -66,4 +75,17 @@ export async function deleteCard(id: string): Promise<void> {
   const cards = await getCards();
   const next = cards.filter((c) => c.id !== id);
   await saveCards(next);
+}
+
+// The user's self-reported current credit score (optional) - used only to
+// personalize the score-range estimate on the Credit Builder tab.
+const CREDIT_SCORE_KEY = 'user_credit_score';
+
+export async function getUserCreditScore(): Promise<number | null> {
+  const stored = await AsyncStorage.getItem(CREDIT_SCORE_KEY);
+  return stored ? parseInt(stored, 10) : null;
+}
+
+export async function setUserCreditScore(score: number): Promise<void> {
+  await AsyncStorage.setItem(CREDIT_SCORE_KEY, score.toString());
 }

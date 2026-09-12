@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Card } from '@/types/card';
-import { getCards, hasSeenPlanIntro, markPlanIntroSeen } from '@/lib/storage';
+import { getCards, hasSeenPlanIntro, markPlanIntroSeen, getUserCreditScore, setUserCreditScore } from '@/lib/storage';
 import { calculatePayoff, pickTarget, Strategy } from '@/lib/payoff';
-import { utilizationPercent, utilizationTier, amountToReachUtilization, daysUntil, nextOccurrenceLabel, UtilizationTier } from '@/lib/utilization';
+import { utilizationPercent, utilizationTier, amountToReachUtilization, daysUntil, nextOccurrenceLabel, estimateScoreRange, UtilizationTier } from '@/lib/utilization';
 import CircularDial from '@/components/circular-dial';
 
 const MONTH_NAMES = [
@@ -25,7 +25,22 @@ const TIER_LABELS: Record<UtilizationTier, string> = { excellent: 'Excellent', g
 const STRATEGY_EXPLAINER: Record<Strategy, string> = {
   avalanche: 'Puts your extra payment toward whichever card has the highest interest rate first. Saves you the most money overall.',
   snowball: 'Puts your extra payment toward whichever card has the smallest balance first. Clears individual cards fastest, for quick wins.',
-  creditBuilder: 'To grow your credit fastest: pay down your most-used card before it closes each month - not just by its due date.',
+  creditBuilder: 'Finds whichever card, if paid down, improves your overall credit usage the most - not just whichever closes soonest.',
+};
+
+const PLAN_INTRO_CONTENT: Record<Strategy, { title: string; body: string }> = {
+  avalanche: {
+    title: 'How this tab works',
+    body: "Drag the circle below to set how much extra you pay each month. We'll show which card to focus on first and update your debt-free date live. Tap Snowball or Credit Builder above to compare other approaches.",
+  },
+  snowball: {
+    title: 'How this tab works',
+    body: "Drag the circle below to set how much extra you pay each month. We'll show which card to focus on first and update your debt-free date live. Tap Avalanche or Credit Builder above to compare other approaches.",
+  },
+  creditBuilder: {
+    title: 'How this tab works',
+    body: "This tab ranks your cards by how much fixing each one would improve your overall credit usage - biggest improvement first. Tap any card below to see its own step-by-step plan.",
+  },
 };
 
 type UtilRow = {
@@ -34,6 +49,7 @@ type UtilRow = {
   days: number | null;
   toGood: number | null;
   toExcellent: number | null;
+  impact: number;
 };
 
 export default function PlanScreen() {
@@ -45,14 +61,37 @@ export default function PlanScreen() {
   const [manualTargetId, setManualTargetId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [showPlanIntro, setShowPlanIntro] = useState(false);
+  const [creditScoreInput, setCreditScoreInput] = useState('');
+  const [savedCreditScore, setSavedCreditScore] = useState<number | null>(null);
 
   useEffect(() => {
-    hasSeenPlanIntro().then((seen) => setShowPlanIntro(!seen));
+    getUserCreditScore().then((score) => {
+      if (score !== null) {
+        setSavedCreditScore(score);
+        setCreditScoreInput(score.toString());
+      }
+    });
   }, []);
+
+  function saveCreditScore() {
+    const num = parseInt(creditScoreInput, 10);
+    if (!isNaN(num) && num >= 300 && num <= 850) {
+      setUserCreditScore(num);
+      setSavedCreditScore(num);
+    }
+  }
+
+  useEffect(() => {
+    hasSeenPlanIntro(strategy).then((seen) => setShowPlanIntro(!seen));
+  }, [strategy]);
 
   function dismissPlanIntro() {
     setShowPlanIntro(false);
-    markPlanIntroSeen();
+    markPlanIntroSeen(strategy);
+  }
+
+  function reopenPlanIntro() {
+    setShowPlanIntro(true);
   }
 
   function selectStrategy(next: Strategy) {
@@ -72,8 +111,6 @@ export default function PlanScreen() {
     return calculatePayoff(cards, strategy, extraPayment, manualTargetId ?? undefined);
   }, [cards, strategy, extraPayment, manualTargetId]);
 
-  // The card actually shown as "this month's" target - the manual override if
-  // one was chosen, otherwise whatever the strategy would automatically pick.
   const displayTarget = useMemo(() => {
     if (cards.length === 0 || strategy === 'creditBuilder') return null;
     if (manualTargetId) {
@@ -88,57 +125,70 @@ export default function PlanScreen() {
     return cards.reduce((worst, c) => (c.balance > worst.balance ? c : worst), cards[0]);
   }, [cards]);
 
+  // Combined balance/limit across every card that has a credit limit set -
+  // the raw numbers behind the overall utilization picture.
+  const overallStats = useMemo(() => {
+    const withLimit = cards.filter((c) => c.creditLimit && c.creditLimit > 0);
+    if (withLimit.length === 0) return { overall: null as number | null, projected: null as number | null, totalLimit: 0, totalBalance: 0 };
+    const totalBalance = withLimit.reduce((sum, c) => sum + c.balance, 0);
+    const totalLimit = withLimit.reduce((sum, c) => sum + (c.creditLimit ?? 0), 0);
+    const overall = totalLimit > 0 ? (totalBalance / totalLimit) * 100 : null;
+    const totalProjectedBalance = withLimit.reduce((sum, c) => {
+      const paydown = amountToReachUtilization(c, 30);
+      const applied = paydown && paydown > 0 ? paydown : 0;
+      return sum + Math.max(0, c.balance - applied);
+    }, 0);
+    const projected = totalLimit > 0 ? (totalProjectedBalance / totalLimit) * 100 : null;
+    return { overall, projected, totalLimit, totalBalance };
+  }, [cards]);
+
+  const overallUtilization = overallStats.overall;
+  const projectedUtilization = overallStats.projected;
+
+  // Ranks cards by "impact" - how much fixing THIS one card alone would drop
+  // your overall combined utilization. Biggest improvement first. This is
+  // what "optimal" means here: not soonest deadline, but biggest score lift.
   const utilizationRows = useMemo<UtilRow[]>(() => {
+    const { totalLimit, totalBalance, overall } = overallStats;
     return cards
-      .map((c) => ({
-        card: c,
-        percent: utilizationPercent(c),
-        days: c.closingDate ? daysUntil(c.closingDate) : null,
-        toGood: amountToReachUtilization(c, 30),
-        toExcellent: amountToReachUtilization(c, 10),
-      }))
+      .map((c) => {
+        const percent = utilizationPercent(c);
+        const days = c.closingDate ? daysUntil(c.closingDate) : null;
+        const toGood = amountToReachUtilization(c, 30);
+        const toExcellent = amountToReachUtilization(c, 10);
+        let impact = 0;
+        if (totalLimit > 0 && overall !== null && toGood !== null && toGood > 0) {
+          const newBalance = totalBalance - toGood;
+          const newOverall = (newBalance / totalLimit) * 100;
+          impact = overall - newOverall;
+        }
+        return { card: c, percent, days, toGood, toExcellent, impact };
+      })
       .sort((a, b) => {
+        if (b.impact !== a.impact) return b.impact - a.impact;
         if (a.days === null) return 1;
         if (b.days === null) return -1;
         return a.days - b.days;
       });
-  }, [cards]);
+  }, [cards, overallStats]);
 
   const mostUrgent = manualTargetId
     ? utilizationRows.find((r) => r.card.id === manualTargetId) ?? utilizationRows[0]
     : utilizationRows[0];
   const laterRows = utilizationRows.filter((r) => r.card.id !== mostUrgent?.card.id);
 
-  // Combined utilization across every card that has a credit limit set.
-  // Cards without a limit are simply excluded from this total, since we
-  // have no way to know their share of the picture.
-  const overallUtilization = useMemo(() => {
-    const withLimit = cards.filter((c) => c.creditLimit && c.creditLimit > 0);
-    if (withLimit.length === 0) return null;
-    const totalBalance = withLimit.reduce((sum, c) => sum + c.balance, 0);
-    const totalLimit = withLimit.reduce((sum, c) => sum + (c.creditLimit ?? 0), 0);
-    return totalLimit > 0 ? (totalBalance / totalLimit) * 100 : null;
-  }, [cards]);
+  // Tied to whichever card is actually the current priority, not the aggregate
+  // "fix everything" scenario - so a smaller card correctly shows a smaller
+  // estimate than a bigger one, matching the reasoning shown in Step 2.
+  const scoreEstimate = useMemo(() => {
+    if (overallUtilization === null || !mostUrgent || mostUrgent.impact <= 0) return null;
+    const afterThisCard = overallUtilization - mostUrgent.impact;
+    return estimateScoreRange(overallUtilization, afterThisCard);
+  }, [overallUtilization, mostUrgent]);
 
-  // What your overall utilization would become if you made every suggested
-  // "get under 30%" payment across all your cards. Real math based on your
-  // actual balances - not a guess at what your score would do.
-  const projectedUtilization = useMemo(() => {
-    const withLimit = cards.filter((c) => c.creditLimit && c.creditLimit > 0);
-    if (withLimit.length === 0) return null;
-    const totalLimit = withLimit.reduce((sum, c) => sum + (c.creditLimit ?? 0), 0);
-    const totalProjectedBalance = withLimit.reduce((sum, c) => {
-      const paydown = amountToReachUtilization(c, 30);
-      const applied = paydown && paydown > 0 ? paydown : 0;
-      return sum + Math.max(0, c.balance - applied);
-    }, 0);
-    return totalLimit > 0 ? (totalProjectedBalance / totalLimit) * 100 : null;
-  }, [cards]);
-
-  // Renders the walkthrough for any given utilization row - reused for both the
-  // top "do this first" card and any expanded "Later" card. showChangeCard adds
-  // an extra step letting the user override which card is the top priority.
-  function renderStepsForRow(row: UtilRow, showChangeCard: boolean = false) {
+  // Simple 4-step walkthrough used only for expanded "Later" cards - the top
+  // priority card gets its own richer sequence built separately below.
+  function renderStepsForRow(row: UtilRow) {
     return (
       <>
         <View style={styles.numberedStep}>
@@ -202,51 +252,6 @@ export default function PlanScreen() {
             </Text>
           </View>
         </View>
-
-        {showChangeCard && (
-          <View style={styles.numberedStep}>
-            <View style={styles.numberCircle}>
-              <Text style={styles.numberCircleText}>5</Text>
-            </View>
-            <View style={styles.numberedStepText}>
-              <Text style={styles.numberedStepTitle}>Want to work on a different card?</Text>
-              <Text style={styles.numberedStepDesc}>
-                You can choose a different card to prioritize instead of the one picked automatically.
-              </Text>
-              <Pressable style={styles.changeButton} onPress={() => setPickerOpen(!pickerOpen)}>
-                <Text style={styles.changeButtonText}>{pickerOpen ? 'Cancel' : 'View other cards'}</Text>
-              </Pressable>
-              {pickerOpen && (
-                <View style={styles.pickerList}>
-                  {cards.map((c) => (
-                    <Pressable
-                      key={c.id}
-                      style={styles.pickerRow}
-                      onPress={() => {
-                        setManualTargetId(c.id);
-                        setPickerOpen(false);
-                      }}
-                    >
-                      <Text style={styles.pickerRowText}>{c.name}</Text>
-                      {c.id === row.card.id && <Text style={styles.pickerCheck}>&#10003;</Text>}
-                    </Pressable>
-                  ))}
-                  {manualTargetId && (
-                    <Pressable
-                      style={styles.pickerRow}
-                      onPress={() => {
-                        setManualTargetId(null);
-                        setPickerOpen(false);
-                      }}
-                    >
-                      <Text style={styles.pickerResetText}>Use automatic pick instead</Text>
-                    </Pressable>
-                  )}
-                </View>
-              )}
-            </View>
-          </View>
-        )}
       </>
     );
   }
@@ -288,16 +293,17 @@ export default function PlanScreen() {
             </Pressable>
           </View>
 
-          <Text style={styles.explainer}>{STRATEGY_EXPLAINER[strategy]}</Text>
+          <View style={styles.explainerRow}>
+            <Text style={styles.explainer}>{STRATEGY_EXPLAINER[strategy]}</Text>
+            <Pressable style={styles.helpButton} onPress={reopenPlanIntro} hitSlop={10}>
+              <Text style={styles.helpButtonText}>?</Text>
+            </Pressable>
+          </View>
 
           {showPlanIntro && (
             <View style={styles.introCard}>
-              <Text style={styles.introTitle}>How this screen works</Text>
-              <Text style={styles.introBody}>
-                Tap Avalanche, Snowball, or Credit Builder above to switch strategies.
-                Drag the circle below to change how much extra you pay each month.
-                Tap any card in the plan to see its own steps.
-              </Text>
+              <Text style={styles.introTitle}>{PLAN_INTRO_CONTENT[strategy].title}</Text>
+              <Text style={styles.introBody}>{PLAN_INTRO_CONTENT[strategy].body}</Text>
               <Pressable style={styles.introButton} onPress={dismissPlanIntro}>
                 <Text style={styles.introButtonText}>Got it</Text>
               </Pressable>
@@ -310,54 +316,6 @@ export default function PlanScreen() {
               keyExtractor={(item) => item.card.id}
               ListHeaderComponent={
                 <>
-                  {overallUtilization !== null && (
-                    <View style={styles.snapshotCard}>
-                      <Text style={styles.snapshotLabel}>OVERALL UTILIZATION SNAPSHOT</Text>
-                      <View style={styles.snapshotCompareRow}>
-                        <View style={styles.snapshotSide}>
-                          <Text style={styles.snapshotSideLabel}>Now</Text>
-                          <Text style={styles.snapshotPercent}>{overallUtilization.toFixed(0)}%</Text>
-                          <View
-                            style={[
-                              styles.tierPill,
-                              { backgroundColor: TIER_COLORS[utilizationTier(overallUtilization)] },
-                            ]}
-                          >
-                            <Text style={styles.tierPillText}>
-                              {TIER_LABELS[utilizationTier(overallUtilization)]}
-                            </Text>
-                          </View>
-                        </View>
-
-                        {projectedUtilization !== null && projectedUtilization < overallUtilization && (
-                          <>
-                            <Text style={styles.snapshotArrow}>&rarr;</Text>
-                            <View style={styles.snapshotSide}>
-                              <Text style={styles.snapshotSideLabel}>After suggested payments</Text>
-                              <Text style={styles.snapshotPercent}>{projectedUtilization.toFixed(0)}%</Text>
-                              <View
-                                style={[
-                                  styles.tierPill,
-                                  { backgroundColor: TIER_COLORS[utilizationTier(projectedUtilization)] },
-                                ]}
-                              >
-                                <Text style={styles.tierPillText}>
-                                  {TIER_LABELS[utilizationTier(projectedUtilization)]}
-                                </Text>
-                              </View>
-                            </View>
-                          </>
-                        )}
-                      </View>
-                      <Text style={styles.snapshotNote}>
-                        This is your combined balance across all cards with a credit limit set,
-                        divided by your combined limit. It's an estimate of the utilization piece
-                        only - your real credit score also depends on payment history, account
-                        age, and other factors this app doesn't track. This isn't an official score.
-                      </Text>
-                    </View>
-                  )}
-
                   {mostUrgent && (
                     <View style={styles.stepCard}>
                       <Pressable
@@ -365,14 +323,197 @@ export default function PlanScreen() {
                         onPress={() => setPlanExpanded(!planExpanded)}
                       >
                         <View>
-                          <Text style={styles.stepLabel}>
-                            {laterRows.length > 0 ? 'DO THIS FIRST' : 'YOUR ACTION PLAN'}
-                          </Text>
+                          <Text style={styles.stepLabel}>YOUR CREDIT PLAN</Text>
                           <Text style={styles.stepCardName}>{mostUrgent.card.name}</Text>
                         </View>
                         <Text style={styles.chevron}>{planExpanded ? '\u2303' : '\u2304'}</Text>
                       </Pressable>
-                      {planExpanded && renderStepsForRow(mostUrgent, true)}
+
+                      {planExpanded && (
+                        <>
+                          <View style={styles.numberedStep}>
+                            <View style={styles.numberCircle}>
+                              <Text style={styles.numberCircleText}>1</Text>
+                            </View>
+                            <View style={styles.numberedStepText}>
+                              <Text style={styles.numberedStepTitle}>See your overall picture</Text>
+                              {overallUtilization !== null ? (
+                                <Text style={styles.numberedStepDesc}>
+                                  Across all your cards, you're using {overallUtilization.toFixed(0)}% of your
+                                  total credit
+                                  {projectedUtilization !== null && projectedUtilization < overallUtilization
+                                    ? ` - suggested payments below could bring that to ${projectedUtilization.toFixed(0)}%.`
+                                    : '.'}
+                                </Text>
+                              ) : (
+                                <Text style={styles.numberedStepDesc}>
+                                  Add credit limits to your cards to see this.
+                                </Text>
+                              )}
+
+                              <View style={styles.scoreInputRow}>
+                                <Text style={styles.scoreInputLabel}>Your current credit score</Text>
+                                <TextInput
+                                  style={styles.scoreInput}
+                                  value={creditScoreInput}
+                                  onChangeText={setCreditScoreInput}
+                                  placeholder="e.g. 620"
+                                  keyboardType="number-pad"
+                                  maxLength={3}
+                                />
+                                <Pressable style={styles.scoreSaveButton} onPress={saveCreditScore}>
+                                  <Text style={styles.scoreSaveButtonText}>Save</Text>
+                                </Pressable>
+                              </View>
+
+                              {scoreEstimate ? (
+                                <Text style={styles.scoreEstimateText}>
+                                  Fixing {mostUrgent.card.name} alone could move your score up by roughly{' '}
+                                  {scoreEstimate.lowPoints}-{scoreEstimate.highPoints} points
+                                  {savedCreditScore
+                                    ? ` (from about ${savedCreditScore} to about ${savedCreditScore + scoreEstimate.lowPoints}-${savedCreditScore + scoreEstimate.highPoints}).`
+                                    : '.'}
+                                </Text>
+                              ) : mostUrgent && mostUrgent.impact > 0 ? (
+                                <Text style={styles.scoreEstimateTextMuted}>
+                                  Paying this down helps your usage, but the improvement isn't large enough
+                                  to give a reliable point estimate.
+                                </Text>
+                              ) : mostUrgent && mostUrgent.percent !== null ? (
+                                <Text style={styles.scoreEstimateTextMuted}>
+                                  This card is already in good shape - no score estimate needed here.
+                                </Text>
+                              ) : null}
+
+                              {(scoreEstimate || (mostUrgent && mostUrgent.impact > 0)) && (
+                                <Text style={styles.scoreDisclaimer}>
+                                  *This is a rough estimate based on published patterns, not a guarantee -
+                                  your real results depend on your full credit history, payment record, and
+                                  other factors this app doesn't track.
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+
+                          <View style={styles.numberedStep}>
+                            <View style={styles.numberCircle}>
+                              <Text style={styles.numberCircleText}>2</Text>
+                            </View>
+                            <View style={styles.numberedStepText}>
+                              <Text style={styles.numberedStepTitle}>Your priority card</Text>
+                              <Text style={styles.numberedStepDesc}>
+                                {mostUrgent.percent !== null
+                                  ? `${mostUrgent.card.name} is at ${mostUrgent.percent.toFixed(0)}% usage. `
+                                  : ''}
+                                {mostUrgent.impact > 0 && overallUtilization !== null
+                                  ? `Fixing this one card drops your overall usage from ${overallUtilization.toFixed(0)}% to ${(overallUtilization - mostUrgent.impact).toFixed(0)}% - the biggest single improvement available right now.`
+                                  : `This is your highest-priority card right now.`}
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View style={styles.numberedStep}>
+                            <View style={styles.numberCircle}>
+                              <Text style={styles.numberCircleText}>3</Text>
+                            </View>
+                            <View style={styles.numberedStepText}>
+                              <Text style={styles.numberedStepTitle}>Know your deadline</Text>
+                              <Text style={styles.numberedStepDesc}>
+                                {mostUrgent.card.closingDate
+                                  ? `Your statement closes ${nextOccurrenceLabel(mostUrgent.card.closingDate)}${mostUrgent.days !== null ? ` (in ${mostUrgent.days} ${mostUrgent.days === 1 ? 'day' : 'days'})` : ''}. That's the balance your bank reports to credit bureaus - not your due date.`
+                                  : `Add a closing date to this card to get an exact deadline.`}
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View style={styles.numberedStep}>
+                            <View style={styles.numberCircle}>
+                              <Text style={styles.numberCircleText}>4</Text>
+                            </View>
+                            <View style={styles.numberedStepText}>
+                              <Text style={styles.numberedStepTitle}>Make this payment</Text>
+                              {mostUrgent.toGood !== null && mostUrgent.toGood > 0 ? (
+                                <Text style={styles.numberedStepDesc}>
+                                  Pay ${mostUrgent.toGood.toLocaleString()}
+                                  {mostUrgent.card.closingDate ? ` before ${nextOccurrenceLabel(mostUrgent.card.closingDate)}` : ''} to get under 30% usage.
+                                </Text>
+                              ) : mostUrgent.percent !== null ? (
+                                <Text style={styles.numberedStepDescGood}>
+                                  You're already under 30% - no payment needed to hit this goal.
+                                </Text>
+                              ) : (
+                                <Text style={styles.numberedStepDesc}>
+                                  We need a credit limit first to suggest an amount.
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+
+                          <View style={styles.numberedStep}>
+                            <View style={styles.numberCircle}>
+                              <Text style={styles.numberCircleText}>5</Text>
+                            </View>
+                            <View style={styles.numberedStepText}>
+                              <Text style={styles.numberedStepTitle}>After it closes</Text>
+                              <Text style={styles.numberedStepDesc}>
+                                A new billing cycle starts right away. Come back here to see your next
+                                priority card.
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View style={styles.numberedStep}>
+                            <View style={styles.numberCircle}>
+                              <Text style={styles.numberCircleText}>6</Text>
+                            </View>
+                            <View style={styles.numberedStepText}>
+                              <Text style={styles.numberedStepTitle}>Want to work on a different card?</Text>
+                              <Text style={styles.numberedStepDesc}>
+                                You can choose a different card to prioritize instead of the one picked
+                                automatically.
+                              </Text>
+                              <Pressable
+                                style={styles.changeButton}
+                                onPress={() => setPickerOpen(!pickerOpen)}
+                              >
+                                <Text style={styles.changeButtonText}>
+                                  {pickerOpen ? 'Cancel' : 'View other cards'}
+                                </Text>
+                              </Pressable>
+                              {pickerOpen && (
+                                <View style={styles.pickerList}>
+                                  {cards.map((c) => (
+                                    <Pressable
+                                      key={c.id}
+                                      style={styles.pickerRow}
+                                      onPress={() => {
+                                        setManualTargetId(c.id);
+                                        setPickerOpen(false);
+                                      }}
+                                    >
+                                      <Text style={styles.pickerRowText}>{c.name}</Text>
+                                      {c.id === mostUrgent.card.id && (
+                                        <Text style={styles.pickerCheck}>&#10003;</Text>
+                                      )}
+                                    </Pressable>
+                                  ))}
+                                  {manualTargetId && (
+                                    <Pressable
+                                      style={styles.pickerRow}
+                                      onPress={() => {
+                                        setManualTargetId(null);
+                                        setPickerOpen(false);
+                                      }}
+                                    >
+                                      <Text style={styles.pickerResetText}>Use automatic pick instead</Text>
+                                    </Pressable>
+                                  )}
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                        </>
+                      )}
                     </View>
                   )}
                   {laterRows.length > 0 && <Text style={styles.orderLabel}>Later</Text>}
@@ -433,109 +574,109 @@ export default function PlanScreen() {
 
                       {planExpanded && (
                         <>
-                      <View style={styles.numberedStep}>
-                        <View style={styles.numberCircle}>
-                          <Text style={styles.numberCircleText}>1</Text>
-                        </View>
-                        <View style={styles.numberedStepText}>
-                          <Text style={styles.numberedStepTitle}>See where your debt sits</Text>
-                          {mostDebtCard && (
-                            <Text style={styles.numberedStepDesc}>
-                              You owe the most on {mostDebtCard.name} (${mostDebtCard.balance.toLocaleString()}).
-                            </Text>
-                          )}
-                        </View>
-                      </View>
-
-                      <View style={styles.numberedStep}>
-                        <View style={styles.numberCircle}>
-                          <Text style={styles.numberCircleText}>2</Text>
-                        </View>
-                        <View style={styles.numberedStepText}>
-                          <Text style={styles.numberedStepTitle}>Your target this month</Text>
-                          <Text style={styles.numberedStepDesc}>
-                            {manualTargetId
-                              ? `You chose to focus on ${displayTarget.name} first.`
-                              : strategy === 'avalanche'
-                              ? `${displayTarget.name} has your highest interest rate (${displayTarget.apr}% APR) - it's costing you the most, so it goes first.`
-                              : `${displayTarget.name} has your smallest balance ($${displayTarget.balance.toLocaleString()}) - paying it off first gives you a quick win.`}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.numberedStep}>
-                        <View style={styles.numberCircle}>
-                          <Text style={styles.numberCircleText}>3</Text>
-                        </View>
-                        <View style={styles.numberedStepText}>
-                          <Text style={styles.numberedStepTitle}>Want to work on a different card?</Text>
-                          <Text style={styles.numberedStepDesc}>
-                            You can override the automatic pick and choose which card to focus on instead.
-                          </Text>
-                          <Pressable
-                            style={styles.changeButton}
-                            onPress={() => setPickerOpen(!pickerOpen)}
-                          >
-                            <Text style={styles.changeButtonText}>
-                              {pickerOpen ? 'Cancel' : 'View other cards'}
-                            </Text>
-                          </Pressable>
-                          {pickerOpen && (
-                            <View style={styles.pickerList}>
-                              {cards.map((c) => (
-                                <Pressable
-                                  key={c.id}
-                                  style={styles.pickerRow}
-                                  onPress={() => {
-                                    setManualTargetId(c.id === displayTarget.id && manualTargetId ? null : c.id);
-                                    setPickerOpen(false);
-                                  }}
-                                >
-                                  <Text style={styles.pickerRowText}>{c.name}</Text>
-                                  {c.id === displayTarget.id && <Text style={styles.pickerCheck}>&#10003;</Text>}
-                                </Pressable>
-                              ))}
-                              {manualTargetId && (
-                                <Pressable
-                                  style={styles.pickerRow}
-                                  onPress={() => {
-                                    setManualTargetId(null);
-                                    setPickerOpen(false);
-                                  }}
-                                >
-                                  <Text style={styles.pickerResetText}>Use automatic pick instead</Text>
-                                </Pressable>
+                          <View style={styles.numberedStep}>
+                            <View style={styles.numberCircle}>
+                              <Text style={styles.numberCircleText}>1</Text>
+                            </View>
+                            <View style={styles.numberedStepText}>
+                              <Text style={styles.numberedStepTitle}>See where your debt sits</Text>
+                              {mostDebtCard && (
+                                <Text style={styles.numberedStepDesc}>
+                                  You owe the most on {mostDebtCard.name} (${mostDebtCard.balance.toLocaleString()}).
+                                </Text>
                               )}
                             </View>
-                          )}
-                        </View>
-                      </View>
+                          </View>
 
-                      <View style={styles.numberedStep}>
-                        <View style={styles.numberCircle}>
-                          <Text style={styles.numberCircleText}>4</Text>
-                        </View>
-                        <View style={styles.numberedStepText}>
-                          <Text style={styles.numberedStepTitle}>Make this payment</Text>
-                          <Text style={styles.numberedStepDesc}>
-                            Pay the minimum on every other card, and put your extra ${extraPayment} toward {displayTarget.name}.
-                          </Text>
-                        </View>
-                      </View>
+                          <View style={styles.numberedStep}>
+                            <View style={styles.numberCircle}>
+                              <Text style={styles.numberCircleText}>2</Text>
+                            </View>
+                            <View style={styles.numberedStepText}>
+                              <Text style={styles.numberedStepTitle}>Your target this month</Text>
+                              <Text style={styles.numberedStepDesc}>
+                                {manualTargetId
+                                  ? `You chose to focus on ${displayTarget.name} first.`
+                                  : strategy === 'avalanche'
+                                  ? `${displayTarget.name} has your highest interest rate (${displayTarget.apr}% APR) - it's costing you the most, so it goes first.`
+                                  : `${displayTarget.name} has your smallest balance ($${displayTarget.balance.toLocaleString()}) - paying it off first gives you a quick win.`}
+                              </Text>
+                            </View>
+                          </View>
 
-                      <View style={styles.numberedStep}>
-                        <View style={styles.numberCircle}>
-                          <Text style={styles.numberCircleText}>5</Text>
-                        </View>
-                        <View style={styles.numberedStepText}>
-                          <Text style={styles.numberedStepTitle}>What happens next</Text>
-                          <Text style={styles.numberedStepDesc}>
-                            Once {displayTarget.name} is paid off, its payment rolls onto your next
-                            card automatically. Keep this up and you'll be debt-free by{' '}
-                            {result ? formatPayoffDate(result.monthsToPayoff) : 'your target date'}.
-                          </Text>
-                        </View>
-                      </View>
+                          <View style={styles.numberedStep}>
+                            <View style={styles.numberCircle}>
+                              <Text style={styles.numberCircleText}>3</Text>
+                            </View>
+                            <View style={styles.numberedStepText}>
+                              <Text style={styles.numberedStepTitle}>Want to work on a different card?</Text>
+                              <Text style={styles.numberedStepDesc}>
+                                You can override the automatic pick and choose which card to focus on instead.
+                              </Text>
+                              <Pressable
+                                style={styles.changeButton}
+                                onPress={() => setPickerOpen(!pickerOpen)}
+                              >
+                                <Text style={styles.changeButtonText}>
+                                  {pickerOpen ? 'Cancel' : 'View other cards'}
+                                </Text>
+                              </Pressable>
+                              {pickerOpen && (
+                                <View style={styles.pickerList}>
+                                  {cards.map((c) => (
+                                    <Pressable
+                                      key={c.id}
+                                      style={styles.pickerRow}
+                                      onPress={() => {
+                                        setManualTargetId(c.id === displayTarget.id && manualTargetId ? null : c.id);
+                                        setPickerOpen(false);
+                                      }}
+                                    >
+                                      <Text style={styles.pickerRowText}>{c.name}</Text>
+                                      {c.id === displayTarget.id && <Text style={styles.pickerCheck}>&#10003;</Text>}
+                                    </Pressable>
+                                  ))}
+                                  {manualTargetId && (
+                                    <Pressable
+                                      style={styles.pickerRow}
+                                      onPress={() => {
+                                        setManualTargetId(null);
+                                        setPickerOpen(false);
+                                      }}
+                                    >
+                                      <Text style={styles.pickerResetText}>Use automatic pick instead</Text>
+                                    </Pressable>
+                                  )}
+                                </View>
+                              )}
+                            </View>
+                          </View>
+
+                          <View style={styles.numberedStep}>
+                            <View style={styles.numberCircle}>
+                              <Text style={styles.numberCircleText}>4</Text>
+                            </View>
+                            <View style={styles.numberedStepText}>
+                              <Text style={styles.numberedStepTitle}>Make this payment</Text>
+                              <Text style={styles.numberedStepDesc}>
+                                Pay the minimum on every other card, and put your extra ${extraPayment} toward {displayTarget.name}.
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View style={styles.numberedStep}>
+                            <View style={styles.numberCircle}>
+                              <Text style={styles.numberCircleText}>5</Text>
+                            </View>
+                            <View style={styles.numberedStepText}>
+                              <Text style={styles.numberedStepTitle}>What happens next</Text>
+                              <Text style={styles.numberedStepDesc}>
+                                Once {displayTarget.name} is paid off, its payment rolls onto your next
+                                card automatically. Keep this up and you'll be debt-free by{' '}
+                                {result ? formatPayoffDate(result.monthsToPayoff) : 'your target date'}.
+                              </Text>
+                            </View>
+                          </View>
                         </>
                       )}
                     </View>
@@ -591,6 +732,18 @@ export default function PlanScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   title: { fontSize: 24, fontWeight: '600', marginBottom: 16 },
+  helpButton: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#1a5fb4',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+    marginTop: 1,
+  },
+  helpButtonText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  explainerRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
   emptyText: { color: '#888', fontSize: 15, textAlign: 'center' },
   toggleRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
@@ -605,7 +758,7 @@ const styles = StyleSheet.create({
   toggleButtonActive: { backgroundColor: '#111' },
   toggleText: { fontSize: 13, color: '#555' },
   toggleTextActive: { color: '#fff', fontWeight: '500' },
-  explainer: { fontSize: 13, color: '#888', lineHeight: 18, marginBottom: 16 },
+  explainer: { flex: 1, fontSize: 13, color: '#888', lineHeight: 18 },
   introCard: {
     backgroundColor: '#fffbea',
     borderRadius: 14,
@@ -625,21 +778,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   introButtonText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  snapshotCard: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#eee',
-  },
-  snapshotLabel: { fontSize: 11, fontWeight: '700', color: '#888', letterSpacing: 0.5, marginBottom: 10 },
-  snapshotCompareRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  snapshotSide: { alignItems: 'flex-start' },
-  snapshotSideLabel: { fontSize: 11, color: '#999', marginBottom: 2 },
-  snapshotArrow: { fontSize: 20, color: '#ccc', marginHorizontal: 14 },
-  snapshotPercent: { fontSize: 24, fontWeight: '700', marginBottom: 4 },
-  snapshotNote: { fontSize: 12, color: '#999', lineHeight: 16 },
   stepCard: {
     backgroundColor: '#eaf3ff',
     borderRadius: 14,
@@ -696,6 +834,28 @@ const styles = StyleSheet.create({
   numberedStepTitle: { fontSize: 14, fontWeight: '600', color: '#111', marginBottom: 2 },
   numberedStepDesc: { fontSize: 13, color: '#444', lineHeight: 18 },
   numberedStepDescGood: { fontSize: 13, color: '#1a7f37', fontWeight: '500', lineHeight: 18 },
+  scoreEstimateText: { fontSize: 13, color: '#1a5fb4', fontWeight: '500', lineHeight: 18, marginTop: 6 },
+  scoreEstimateTextMuted: { fontSize: 13, color: '#888', lineHeight: 18, marginTop: 6, fontStyle: 'italic' },
+  scoreInputRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  scoreInputLabel: { fontSize: 12, color: '#666' },
+  scoreInput: {
+    borderWidth: 1,
+    borderColor: '#c9e0ff',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    fontSize: 13,
+    width: 70,
+    backgroundColor: '#fff',
+  },
+  scoreSaveButton: {
+    backgroundColor: '#1a5fb4',
+    borderRadius: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+  },
+  scoreSaveButtonText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  scoreDisclaimer: { fontSize: 11, color: '#8098bd', lineHeight: 15, marginTop: 8, fontStyle: 'italic' },
   dialWrap: { alignItems: 'center', marginBottom: 20 },
   heroCard: {
     backgroundColor: '#111',

@@ -57,3 +57,38 @@ function todayMidnight(): Date {
   today.setHours(0, 0, 0, 0);
   return today;
 }
+
+// A rough, labeled estimate of how many points a credit score might move
+// given an improvement in overall utilization, based on commonly-cited
+// industry patterns (not a real scoring model - actual results vary a lot
+// based on your full credit history, payment record, and account age).
+export interface ScoreEstimate {
+  lowPoints: number;
+  highPoints: number;
+}
+
+export function estimateScoreRange(beforePercent: number, afterPercent: number): ScoreEstimate | null {
+  const drop = beforePercent - afterPercent;
+  if (drop <= 0.5) return null; // negligible improvement, not worth estimating
+
+  // Continuous baseline: roughly 0.6-1.2 score points per 1 percentage point
+  // of utilization reduced - a conservative general-purpose scale.
+  let low = Math.round(drop * 0.6);
+  let high = Math.round(drop * 1.2);
+
+  // Crossing the well-documented 30%/10% thresholds tends to matter more than
+  // the raw percentage math alone, so boost the range when a cliff is crossed.
+  const crossedThirty = beforePercent >= 30 && afterPercent < 30;
+  const crossedTen = beforePercent >= 10 && afterPercent < 10;
+
+  if (crossedThirty) {
+    low = Math.max(low, beforePercent >= 60 ? 40 : 20);
+    high = Math.max(high, beforePercent >= 60 ? 70 : 40);
+  }
+  if (crossedTen) {
+    low = Math.max(low, 10);
+    high = Math.max(high, 20);
+  }
+
+  return { lowPoints: Math.max(1, low), highPoints: Math.max(low + 1, high) };
+}
