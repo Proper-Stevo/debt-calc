@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable, Alert } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Pressable, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   hasPin,
@@ -11,6 +11,7 @@ import {
 } from '@/lib/auth';
 import { clearCards, clearPlanIntroFlag } from '@/lib/storage';
 import { AuthContext } from '@/lib/auth-context';
+import { useTheme } from '@/lib/theme';
 
 type Mode = 'loading' | 'welcome' | 'create' | 'confirm' | 'onboarding' | 'loggedOut' | 'locked' | 'unlocked';
 
@@ -30,27 +31,36 @@ const ONBOARDING_SLIDES = [
 ];
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
+  const theme = useTheme();
   const [mode, setMode] = useState<Mode>('loading');
   const [input, setInput] = useState('');
-  const [firstPin, setFirstPin] = useState(''); // holds the PIN during the "confirm" step
+  const [firstPin, setFirstPin] = useState('');
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
 
-  // On mount, figure out which screen to show first.
   useEffect(() => {
     (async () => {
       const pinExists = await hasPin();
       if (!pinExists) {
-        setMode('welcome'); // no pin at all - definitely a new user
+        setMode('welcome');
         return;
       }
       const bioAvailable = await isBiometricAvailable();
       setBiometricAvailable(bioAvailable);
-      // A PIN already exists, but we still ask every time rather than assuming -
-      // biometric/PIN entry only happens once they choose "Log in".
       setMode('loggedOut');
     })();
   }, []);
+
+  // On the web build, the outer WebPasswordGate is already the privacy layer
+  // for testers. expo-secure-store and expo-local-authentication (PIN storage
+  // and Face ID) don't reliably work inside a browser, so rather than risk a
+  // tester getting stuck behind a broken PIN screen, web skips this entirely
+  // and goes straight in. Native iOS/Android are completely unaffected -
+  // they still get the full PIN + biometric flow exactly as before. This check
+  // runs after all hooks are declared, so it doesn't break React's rules of hooks.
+  if (Platform.OS === 'web') {
+    return <AuthContext.Provider value={{ lock: () => {}, resetApp: async () => {} }}>{children}</AuthContext.Provider>;
+  }
 
   async function attemptBiometric() {
     const success = await tryBiometricUnlock();
@@ -78,7 +88,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     await setPin(input);
     setInput('');
     setOnboardingStep(0);
-    setMode('onboarding'); // walk brand-new users through the workflow before dropping them in
+    setMode('onboarding');
   }
 
   async function handleUnlockSubmit() {
@@ -109,7 +119,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     setInput('');
     setFirstPin('');
     setBiometricAvailable(false);
-    setMode('welcome'); // treat this like a genuinely fresh start, intro screen included
+    setMode('welcome');
   }
 
   function confirmNewUser() {
@@ -130,42 +140,43 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-   {mode === 'welcome' && (
-  <>
-    <Text style={styles.brand}>Nudge</Text>
-    <Text style={styles.title}>Pay off your credit card debt, faster</Text>
-    <Text style={styles.subtitle}>
-      Track your cards, compare payoff strategies, and see exactly when
-      you&apos;ll be debt-free. Everything stays on your device.
-    </Text>
-    <Text style={styles.disclaimer}>
-      This app gives general estimates based on info you enter and public
-      research - not financial or credit advice.
-    </Text>
-    <Pressable style={styles.button} onPress={() => setMode('create')}>
-      <Text style={styles.buttonText}>Get started</Text>
-    </Pressable>
-  </>
-)}
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      {mode === 'welcome' && (
+        <>
+          <Text style={[styles.brand, { color: theme.textMuted }]}>Nudge</Text>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>Pay off your credit card debt, faster</Text>
+          <Text style={[styles.subtitle, { color: theme.textMuted }]}>
+            Track your cards, compare payoff strategies, and see exactly when
+            you&apos;ll be debt-free. Everything stays on your device.
+          </Text>
+          <Text style={[styles.disclaimer, { color: theme.disclaimerText }]}>
+            This app gives general estimates based on info you enter and public
+            research - not financial or credit advice.
+          </Text>
+          <Pressable style={[styles.button, { backgroundColor: theme.accent }]} onPress={() => setMode('create')}>
+            <Text style={styles.buttonText}>Get started</Text>
+          </Pressable>
+        </>
+      )}
 
       {mode === 'create' && (
         <>
-          <Text style={styles.title}>Set up a PIN</Text>
-          <Text style={styles.subtitle}>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>Set up a PIN</Text>
+          <Text style={[styles.subtitle, { color: theme.textMuted }]}>
             You&apos;ll be storing sensitive info here, like your card balances
             and interest rates. A PIN keeps it private to you.
           </Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { borderColor: theme.border, backgroundColor: theme.cardInnerBackground, color: theme.textPrimary }]}
             value={input}
             onChangeText={setInput}
             keyboardType="number-pad"
             secureTextEntry
             maxLength={6}
             autoFocus
+            placeholderTextColor={theme.textFaint}
           />
-          <Pressable style={styles.button} onPress={handleCreateSubmit}>
+          <Pressable style={[styles.button, { backgroundColor: theme.accent }]} onPress={handleCreateSubmit}>
             <Text style={styles.buttonText}>Continue</Text>
           </Pressable>
         </>
@@ -173,17 +184,18 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
       {mode === 'confirm' && (
         <>
-          <Text style={styles.title}>Confirm your PIN</Text>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>Confirm your PIN</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { borderColor: theme.border, backgroundColor: theme.cardInnerBackground, color: theme.textPrimary }]}
             value={input}
             onChangeText={setInput}
             keyboardType="number-pad"
             secureTextEntry
             maxLength={6}
             autoFocus
+            placeholderTextColor={theme.textFaint}
           />
-          <Pressable style={styles.button} onPress={handleConfirmSubmit}>
+          <Pressable style={[styles.button, { backgroundColor: theme.accent }]} onPress={handleConfirmSubmit}>
             <Text style={styles.buttonText}>Confirm</Text>
           </Pressable>
         </>
@@ -193,13 +205,20 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         <>
           <View style={styles.dotsRow}>
             {ONBOARDING_SLIDES.map((_, i) => (
-              <View key={i} style={[styles.dot, i === onboardingStep && styles.dotActive]} />
+              <View
+                key={i}
+                style={[
+                  styles.dot,
+                  { backgroundColor: theme.border },
+                  i === onboardingStep && { backgroundColor: theme.accent, width: 20 },
+                ]}
+              />
             ))}
           </View>
-          <Text style={styles.title}>{ONBOARDING_SLIDES[onboardingStep].title}</Text>
-          <Text style={styles.subtitle}>{ONBOARDING_SLIDES[onboardingStep].body}</Text>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>{ONBOARDING_SLIDES[onboardingStep].title}</Text>
+          <Text style={[styles.subtitle, { color: theme.textMuted }]}>{ONBOARDING_SLIDES[onboardingStep].body}</Text>
           <Pressable
-            style={styles.button}
+            style={[styles.button, { backgroundColor: theme.accent }]}
             onPress={() => {
               if (onboardingStep < ONBOARDING_SLIDES.length - 1) {
                 setOnboardingStep(onboardingStep + 1);
@@ -216,41 +235,41 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       )}
 
       {mode === 'loggedOut' && (
-  <>
-    {/* <Text style={styles.brand}>Nudge</Text> */}
-    <Text style={styles.title}>Welcome to Nudge</Text>
-    <Text style={styles.subtitle}>Are you a returning user, or starting fresh?</Text>
-          <Pressable style={styles.button} onPress={goToLogin}>
+        <>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>Welcome to Nudge</Text>
+          <Text style={[styles.subtitle, { color: theme.textMuted }]}>Are you a returning user, or starting fresh?</Text>
+          <Pressable style={[styles.button, { backgroundColor: theme.accent }]} onPress={goToLogin}>
             <Text style={styles.buttonText}>I&apos;m returning</Text>
           </Pressable>
-          <Pressable style={styles.secondaryButton} onPress={confirmNewUser}>
-            <Text style={styles.secondaryButtonText}>I&apos;m new / start fresh</Text>
+          <Pressable style={[styles.secondaryButton, { borderColor: theme.border }]} onPress={confirmNewUser}>
+            <Text style={[styles.secondaryButtonText, { color: theme.textPrimary }]}>I&apos;m new / start fresh</Text>
           </Pressable>
         </>
       )}
 
       {mode === 'locked' && (
         <>
-          <Text style={styles.title}>Enter your PIN</Text>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>Enter your PIN</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { borderColor: theme.border, backgroundColor: theme.cardInnerBackground, color: theme.textPrimary }]}
             value={input}
             onChangeText={setInput}
             keyboardType="number-pad"
             secureTextEntry
             maxLength={6}
             autoFocus
+            placeholderTextColor={theme.textFaint}
           />
-          <Pressable style={styles.button} onPress={handleUnlockSubmit}>
+          <Pressable style={[styles.button, { backgroundColor: theme.accent }]} onPress={handleUnlockSubmit}>
             <Text style={styles.buttonText}>Unlock</Text>
           </Pressable>
           {biometricAvailable && (
             <Pressable style={styles.linkButton} onPress={attemptBiometric}>
-              <Text style={styles.linkButtonText}>Use Face ID instead</Text>
+              <Text style={[styles.linkButtonText, { color: theme.textSecondary }]}>Use Face ID instead</Text>
             </Pressable>
           )}
           <Pressable style={styles.linkButton} onPress={confirmNewUser}>
-            <Text style={styles.linkButtonText}>Forgot PIN? Start over</Text>
+            <Text style={[styles.linkButtonText, { color: theme.textSecondary }]}>Forgot PIN? Start over</Text>
           </Pressable>
         </>
       )}
@@ -259,14 +278,13 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#fff' },
-  brand: { fontSize: 15, fontWeight: '600', textAlign: 'center', color: '#888', marginBottom: 24 },
+  container: { flex: 1, justifyContent: 'center', padding: 24 },
+  brand: { fontSize: 15, fontWeight: '600', textAlign: 'center', marginBottom: 24 },
   title: { fontSize: 22, fontWeight: '600', textAlign: 'center', marginBottom: 8 },
-  disclaimer: { fontSize: 11, color: '#aaa', textAlign: 'center', marginBottom: 20, lineHeight: 15 },
-  subtitle: { fontSize: 14, color: '#888', textAlign: 'center', marginBottom: 24, lineHeight: 20 },
+  disclaimer: { fontSize: 11, textAlign: 'center', marginBottom: 20, lineHeight: 15 },
+  subtitle: { fontSize: 14, textAlign: 'center', marginBottom: 24, lineHeight: 20 },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
     borderRadius: 10,
     padding: 14,
     fontSize: 20,
@@ -275,7 +293,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   button: {
-    backgroundColor: '#111',
     borderRadius: 10,
     padding: 14,
     alignItems: 'center',
@@ -283,16 +300,15 @@ const styles = StyleSheet.create({
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '500' },
   secondaryButton: {
     borderWidth: 1,
-    borderColor: '#ddd',
     borderRadius: 10,
     padding: 14,
     alignItems: 'center',
     marginTop: 12,
   },
-  secondaryButtonText: { color: '#111', fontSize: 16, fontWeight: '500' },
+  secondaryButtonText: { fontSize: 16, fontWeight: '500' },
   linkButton: { marginTop: 16, alignItems: 'center' },
-  linkButtonText: { color: '#555', fontSize: 14 },
+  linkButtonText: { fontSize: 14 },
   dotsRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 32 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ddd' },
-  dotActive: { backgroundColor: '#111', width: 20 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  dotActive: { width: 20 },
 });

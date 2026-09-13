@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable, Alert, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { getCard, updateCard, deleteCard } from '@/lib/storage';
+import { useTheme } from '@/lib/theme';
 
 export default function EditCardScreen() {
+  const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [name, setName] = useState('');
@@ -92,34 +94,75 @@ export default function EditCardScreen() {
   if (loading) return null;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.label}>Card name</Text>
-      <TextInput style={styles.input} value={name} onChangeText={setName} />
+    <ScrollView style={[styles.container, { backgroundColor: theme.background }]} contentContainerStyle={styles.content}>
+      <Text style={[styles.label, { color: theme.textSecondary }]}>Card name</Text>
+      <TextInput
+        style={[styles.input, { borderColor: theme.border, backgroundColor: theme.cardInnerBackground, color: theme.textPrimary }]}
+        value={name}
+        onChangeText={setName}
+        placeholderTextColor={theme.textFaint}
+      />
 
-      <Text style={styles.label}>Balance ($)</Text>
-      <TextInput style={styles.input} value={balance} onChangeText={setBalance} keyboardType="decimal-pad" />
+      <Text style={[styles.label, { color: theme.textSecondary }]}>Balance ($)</Text>
+      <TextInput
+        style={[styles.input, { borderColor: theme.border, backgroundColor: theme.cardInnerBackground, color: theme.textPrimary }]}
+        value={balance}
+        onChangeText={setBalance}
+        keyboardType="decimal-pad"
+        placeholderTextColor={theme.textFaint}
+      />
 
-      <Text style={styles.label}>APR (%)</Text>
-      <TextInput style={styles.input} value={apr} onChangeText={setApr} keyboardType="decimal-pad" />
+      <Text style={[styles.label, { color: theme.textSecondary }]}>APR (%)</Text>
+      <TextInput
+        style={[styles.input, { borderColor: theme.border, backgroundColor: theme.cardInnerBackground, color: theme.textPrimary }]}
+        value={apr}
+        onChangeText={setApr}
+        keyboardType="decimal-pad"
+        placeholderTextColor={theme.textFaint}
+      />
 
-      <Text style={styles.label}>Minimum payment ($)</Text>
-      <TextInput style={styles.input} value={minPayment} onChangeText={setMinPayment} keyboardType="decimal-pad" />
+      <Text style={[styles.label, { color: theme.textSecondary }]}>Minimum payment ($)</Text>
+      <TextInput
+        style={[styles.input, { borderColor: theme.border, backgroundColor: theme.cardInnerBackground, color: theme.textPrimary }]}
+        value={minPayment}
+        onChangeText={setMinPayment}
+        keyboardType="decimal-pad"
+        placeholderTextColor={theme.textFaint}
+      />
 
-      <Text style={styles.sectionLabel}>Optional details</Text>
+      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Optional details</Text>
 
-      <Text style={styles.label}>Credit limit ($)</Text>
-      <TextInput style={styles.input} value={creditLimit} onChangeText={setCreditLimit} keyboardType="decimal-pad" />
+      <Text style={[styles.label, { color: theme.textSecondary }]}>Credit limit ($)</Text>
+      <TextInput
+        style={[styles.input, { borderColor: theme.border, backgroundColor: theme.cardInnerBackground, color: theme.textPrimary }]}
+        value={creditLimit}
+        onChangeText={setCreditLimit}
+        keyboardType="decimal-pad"
+        placeholderTextColor={theme.textFaint}
+      />
 
-      <Text style={styles.label}>Due date (day of month, 1-31)</Text>
-      <TextInput style={styles.input} value={dueDate} onChangeText={setDueDate} keyboardType="number-pad" />
+      <Text style={[styles.label, { color: theme.textSecondary }]}>Due date (day of month, 1-31)</Text>
+      <TextInput
+        style={[styles.input, { borderColor: theme.border, backgroundColor: theme.cardInnerBackground, color: theme.textPrimary }]}
+        value={dueDate}
+        onChangeText={setDueDate}
+        keyboardType="number-pad"
+        placeholderTextColor={theme.textFaint}
+      />
 
-      <Text style={styles.label}>Statement closing date (day of month, 1-31)</Text>
-      <Text style={styles.hint}>
+      <Text style={[styles.label, { color: theme.textSecondary }]}>Statement closing date (day of month, 1-31)</Text>
+      <Text style={[styles.hint, { color: theme.textMuted }]}>
         The day your billing cycle ends - this is the balance reported to credit bureaus.
       </Text>
-      <TextInput style={styles.input} value={closingDate} onChangeText={setClosingDate} keyboardType="number-pad" />
+      <TextInput
+        style={[styles.input, { borderColor: theme.border, backgroundColor: theme.cardInnerBackground, color: theme.textPrimary }]}
+        value={closingDate}
+        onChangeText={setClosingDate}
+        keyboardType="number-pad"
+        placeholderTextColor={theme.textFaint}
+      />
 
-      <Pressable style={styles.saveButton} onPress={handleSave}>
+      <Pressable style={[styles.saveButton, { backgroundColor: theme.accent }]} onPress={handleSave}>
         <Text style={styles.saveButtonText}>Save changes</Text>
       </Pressable>
 
@@ -133,25 +176,22 @@ export default function EditCardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 40 },
-  label: { fontSize: 13, color: '#666', marginBottom: 4, marginTop: 12 },
-  hint: { fontSize: 12, color: '#999', marginBottom: 6 },
+  label: { fontSize: 13, marginBottom: 4, marginTop: 12 },
+  hint: { fontSize: 12, marginBottom: 6 },
   sectionLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#333',
     marginTop: 24,
     marginBottom: 4,
     textTransform: 'uppercase',
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
     borderRadius: 8,
     padding: 10,
     fontSize: 16,
   },
   saveButton: {
-    backgroundColor: '#111',
     borderRadius: 10,
     padding: 14,
     alignItems: 'center',

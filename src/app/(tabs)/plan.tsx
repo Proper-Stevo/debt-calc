@@ -7,6 +7,7 @@ import { getCards, hasSeenPlanIntro, markPlanIntroSeen, getUserCreditScore, setU
 import { calculatePayoff, pickTarget, Strategy } from '@/lib/payoff';
 import { utilizationPercent, utilizationTier, amountToReachUtilization, daysUntil, nextOccurrenceLabel, estimateScoreRange, UtilizationTier } from '@/lib/utilization';
 import CircularDial from '@/components/circular-dial';
+import { useTheme } from '@/lib/theme';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -53,6 +54,7 @@ type UtilRow = {
 };
 
 export default function PlanScreen() {
+  const theme = useTheme();
   const [cards, setCards] = useState<Card[]>([]);
   const [strategy, setStrategy] = useState<Strategy>('avalanche');
   const [extraPayment, setExtraPayment] = useState(100);
@@ -125,8 +127,6 @@ export default function PlanScreen() {
     return cards.reduce((worst, c) => (c.balance > worst.balance ? c : worst), cards[0]);
   }, [cards]);
 
-  // Combined balance/limit across every card that has a credit limit set -
-  // the raw numbers behind the overall utilization picture.
   const overallStats = useMemo(() => {
     const withLimit = cards.filter((c) => c.creditLimit && c.creditLimit > 0);
     if (withLimit.length === 0) return { overall: null as number | null, projected: null as number | null, totalLimit: 0, totalBalance: 0 };
@@ -145,9 +145,6 @@ export default function PlanScreen() {
   const overallUtilization = overallStats.overall;
   const projectedUtilization = overallStats.projected;
 
-  // Ranks cards by "impact" - how much fixing THIS one card alone would drop
-  // your overall combined utilization. Biggest improvement first. This is
-  // what "optimal" means here: not soonest deadline, but biggest score lift.
   const utilizationRows = useMemo<UtilRow[]>(() => {
     const { totalLimit, totalBalance, overall } = overallStats;
     return cards
@@ -177,17 +174,12 @@ export default function PlanScreen() {
     : utilizationRows[0];
   const laterRows = utilizationRows.filter((r) => r.card.id !== mostUrgent?.card.id);
 
-  // Tied to whichever card is actually the current priority, not the aggregate
-  // "fix everything" scenario - so a smaller card correctly shows a smaller
-  // estimate than a bigger one, matching the reasoning shown in Step 2.
   const scoreEstimate = useMemo(() => {
     if (overallUtilization === null || !mostUrgent || mostUrgent.impact <= 0) return null;
     const afterThisCard = overallUtilization - mostUrgent.impact;
     return estimateScoreRange(overallUtilization, afterThisCard);
   }, [overallUtilization, mostUrgent]);
 
-  // Simple 4-step walkthrough used only for expanded "Later" cards - the top
-  // priority card gets its own richer sequence built separately below.
   function renderStepsForRow(row: UtilRow) {
     return (
       <>
@@ -257,45 +249,57 @@ export default function PlanScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <Text style={styles.title}>Plan</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <Text style={[styles.title, { color: theme.textPrimary }]}>Plan</Text>
 
       {cards.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyText}>Add a card first to see your payoff plan.</Text>
+          <Text style={[styles.emptyText, { color: theme.textMuted }]}>Add a card first to see your payoff plan.</Text>
         </View>
       ) : (
         <>
           <View style={styles.toggleRow}>
             <Pressable
-              style={[styles.toggleButton, strategy === 'avalanche' && styles.toggleButtonActive]}
+              style={[
+                styles.toggleButton,
+                { backgroundColor: theme.cardInnerBackground },
+                strategy === 'avalanche' && { backgroundColor: theme.accent },
+              ]}
               onPress={() => selectStrategy('avalanche')}
             >
-              <Text style={[styles.toggleText, strategy === 'avalanche' && styles.toggleTextActive]}>
+              <Text style={[styles.toggleText, { color: theme.textSecondary }, strategy === 'avalanche' && styles.toggleTextActive]}>
                 Avalanche
               </Text>
             </Pressable>
             <Pressable
-              style={[styles.toggleButton, strategy === 'snowball' && styles.toggleButtonActive]}
+              style={[
+                styles.toggleButton,
+                { backgroundColor: theme.cardInnerBackground },
+                strategy === 'snowball' && { backgroundColor: theme.accent },
+              ]}
               onPress={() => selectStrategy('snowball')}
             >
-              <Text style={[styles.toggleText, strategy === 'snowball' && styles.toggleTextActive]}>
+              <Text style={[styles.toggleText, { color: theme.textSecondary }, strategy === 'snowball' && styles.toggleTextActive]}>
                 Snowball
               </Text>
             </Pressable>
             <Pressable
-              style={[styles.toggleButton, strategy === 'creditBuilder' && styles.toggleButtonActive]}
+              style={[
+                styles.toggleButton,
+                { backgroundColor: theme.cardInnerBackground },
+                strategy === 'creditBuilder' && { backgroundColor: theme.accent },
+              ]}
               onPress={() => selectStrategy('creditBuilder')}
             >
-              <Text style={[styles.toggleText, strategy === 'creditBuilder' && styles.toggleTextActive]}>
+              <Text style={[styles.toggleText, { color: theme.textSecondary }, strategy === 'creditBuilder' && styles.toggleTextActive]}>
                 Credit Builder
               </Text>
             </Pressable>
           </View>
 
           <View style={styles.explainerRow}>
-            <Text style={styles.explainer}>{STRATEGY_EXPLAINER[strategy]}</Text>
-            <Pressable style={styles.helpButton} onPress={reopenPlanIntro} hitSlop={10}>
+            <Text style={[styles.explainer, { color: theme.textMuted }]}>{STRATEGY_EXPLAINER[strategy]}</Text>
+            <Pressable style={[styles.helpButton, { backgroundColor: theme.accent }]} onPress={reopenPlanIntro} hitSlop={10}>
               <Text style={styles.helpButtonText}>?</Text>
             </Pressable>
           </View>
@@ -326,7 +330,7 @@ export default function PlanScreen() {
                           <Text style={styles.stepLabel}>YOUR CREDIT PLAN</Text>
                           <Text style={styles.stepCardName}>{mostUrgent.card.name}</Text>
                         </View>
-                        <Text style={styles.chevron}>{planExpanded ? '\u2303' : '\u2304'}</Text>
+                        <Text style={styles.stepCardChevron}>{planExpanded ? '\u2303' : '\u2304'}</Text>
                       </Pressable>
 
                       {planExpanded && (
@@ -516,7 +520,7 @@ export default function PlanScreen() {
                       )}
                     </View>
                   )}
-                  {laterRows.length > 0 && <Text style={styles.orderLabel}>Later</Text>}
+                  {laterRows.length > 0 && <Text style={[styles.orderLabel, { color: theme.textMuted }]}>Later</Text>}
                 </>
               }
               renderItem={({ item }) => {
@@ -524,30 +528,30 @@ export default function PlanScreen() {
                 const isExpanded = expandedCardId === item.card.id;
                 return (
                   <Pressable
-                    style={styles.utilCard}
+                    style={[styles.utilCard, { backgroundColor: theme.cardInnerBackground }]}
                     onPress={() => setExpandedCardId(isExpanded ? null : item.card.id)}
                   >
                     <View style={styles.utilTopLine}>
-                      <Text style={styles.utilName}>{item.card.name}</Text>
+                      <Text style={[styles.utilName, { color: theme.textPrimary }]}>{item.card.name}</Text>
                       <View style={styles.utilTopRight}>
                         <View style={[styles.tierPill, { backgroundColor: TIER_COLORS[tier] }]}>
                           <Text style={styles.tierPillText}>{TIER_LABELS[tier]}</Text>
                         </View>
-                        <Text style={styles.chevron}>{isExpanded ? '\u2303' : '\u2304'}</Text>
+                        <Text style={[styles.chevron, { color: theme.textFaint }]}>{isExpanded ? '\u2303' : '\u2304'}</Text>
                       </View>
                     </View>
 
                     {!isExpanded && (
                       <>
                         {item.percent !== null && (
-                          <Text style={styles.utilPercent}>{item.percent.toFixed(0)}% utilized</Text>
+                          <Text style={[styles.utilPercent, { color: theme.textSecondary }]}>{item.percent.toFixed(0)}% utilized</Text>
                         )}
                         {item.days !== null && (
-                          <Text style={styles.utilDays}>
+                          <Text style={[styles.utilDays, { color: theme.textMuted }]}>
                             Closes in {item.days} {item.days === 1 ? 'day' : 'days'}
                           </Text>
                         )}
-                        <Text style={styles.tapHint}>Tap for steps</Text>
+                        <Text style={[styles.tapHint, { color: theme.textFaint }]}>Tap for steps</Text>
                       </>
                     )}
 
@@ -569,7 +573,7 @@ export default function PlanScreen() {
                         onPress={() => setPlanExpanded(!planExpanded)}
                       >
                         <Text style={styles.stepLabel}>THIS MONTH</Text>
-                        <Text style={styles.chevron}>{planExpanded ? '\u2303' : '\u2304'}</Text>
+                        <Text style={styles.stepCardChevron}>{planExpanded ? '\u2303' : '\u2304'}</Text>
                       </Pressable>
 
                       {planExpanded && (
@@ -703,21 +707,21 @@ export default function PlanScreen() {
                     </View>
                   )}
 
-                  {result && <Text style={styles.orderLabel}>Full payoff order</Text>}
+                  {result && <Text style={[styles.orderLabel, { color: theme.textMuted }]}>Full payoff order</Text>}
                 </>
               }
               renderItem={({ item, index }) => (
-                <View style={styles.orderRow}>
+                <View style={[styles.orderRow, { borderBottomColor: theme.border }]}>
                   <View style={styles.orderTopLine}>
-                    <Text style={styles.orderRank}>{index + 1}.</Text>
-                    <Text style={styles.orderName}>{item.cardName}</Text>
-                    <Text style={styles.orderMonth}>Paid off {formatPayoffDate(item.payoffMonth)}</Text>
+                    <Text style={[styles.orderRank, { color: theme.textMuted }]}>{index + 1}.</Text>
+                    <Text style={[styles.orderName, { color: theme.textPrimary }]}>{item.cardName}</Text>
+                    <Text style={[styles.orderMonth, { color: theme.textMuted }]}>Paid off {formatPayoffDate(item.payoffMonth)}</Text>
                   </View>
                   <View style={styles.orderDetailLine}>
-                    <Text style={styles.orderDetail}>
+                    <Text style={[styles.orderDetail, { color: theme.textFaint }]}>
                       Started at ${item.originalBalance.toLocaleString()} &middot; {item.apr}% APR
                     </Text>
-                    <Text style={styles.orderDetail}>${item.interestPaid.toLocaleString()} interest</Text>
+                    <Text style={[styles.orderDetail, { color: theme.textFaint }]}>${item.interestPaid.toLocaleString()} interest</Text>
                   </View>
                 </View>
               )}
@@ -736,7 +740,6 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: '#1a5fb4',
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 8,
@@ -745,20 +748,22 @@ const styles = StyleSheet.create({
   helpButtonText: { fontSize: 13, fontWeight: '700', color: '#fff' },
   explainerRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
-  emptyText: { color: '#888', fontSize: 15, textAlign: 'center' },
+  emptyText: { fontSize: 15, textAlign: 'center' },
   toggleRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   toggleButton: {
     flex: 1,
     paddingVertical: 10,
     paddingHorizontal: 4,
     borderRadius: 8,
-    backgroundColor: '#f5f5f5',
     alignItems: 'center',
   },
-  toggleButtonActive: { backgroundColor: '#111' },
-  toggleText: { fontSize: 13, color: '#555' },
+  toggleText: { fontSize: 13 },
   toggleTextActive: { color: '#fff', fontWeight: '500' },
-  explainer: { flex: 1, fontSize: 13, color: '#888', lineHeight: 18 },
+  explainer: { flex: 1, fontSize: 13, lineHeight: 18 },
+  // Self-contained widgets below keep their own fixed light-theme colors
+  // intentionally (yellow tip card, blue step card, dark hero card, gray
+  // utilization card) since each sets its own explicit background and is
+  // readable regardless of system light/dark mode.
   introCard: {
     backgroundColor: '#fffbea',
     borderRadius: 14,
@@ -788,7 +793,8 @@ const styles = StyleSheet.create({
   },
   stepLabel: { fontSize: 11, fontWeight: '700', color: '#1a5fb4', letterSpacing: 0.5, marginBottom: 6 },
   stepCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  stepCardName: { fontSize: 18, fontWeight: '600', marginTop: 2 },
+  stepCardName: { fontSize: 18, fontWeight: '600', marginTop: 2, color: '#111' },
+  stepCardChevron: { fontSize: 14, color: '#7395c4' },
   changeButton: {
     backgroundColor: '#1a5fb4',
     borderRadius: 8,
@@ -847,6 +853,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     width: 70,
     backgroundColor: '#fff',
+    color: '#111',
   },
   scoreSaveButton: {
     backgroundColor: '#1a5fb4',
@@ -866,20 +873,18 @@ const styles = StyleSheet.create({
   heroLabel: { color: '#aaa', fontSize: 13, marginBottom: 4 },
   heroValue: { color: '#fff', fontSize: 26, fontWeight: '600', marginBottom: 6 },
   heroSub: { color: '#ccc', fontSize: 13 },
-  orderLabel: { fontSize: 13, color: '#666', marginBottom: 8 },
+  orderLabel: { fontSize: 13, marginBottom: 8 },
   orderRow: {
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
   },
   orderTopLine: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  orderRank: { width: 24, fontSize: 14, color: '#888' },
+  orderRank: { width: 24, fontSize: 14 },
   orderName: { flex: 1, fontSize: 15, fontWeight: '500' },
-  orderMonth: { fontSize: 12, color: '#888' },
+  orderMonth: { fontSize: 12 },
   orderDetailLine: { flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 24 },
-  orderDetail: { fontSize: 12, color: '#999' },
+  orderDetail: { fontSize: 12 },
   utilCard: {
-    backgroundColor: '#f5f5f5',
     borderRadius: 12,
     padding: 14,
     marginBottom: 10,
@@ -891,12 +896,12 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   utilTopRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  chevron: { fontSize: 14, color: '#999' },
+  chevron: { fontSize: 14 },
   utilName: { fontSize: 15, fontWeight: '500' },
   tierPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   tierPillText: { color: '#fff', fontSize: 11, fontWeight: '600' },
-  utilPercent: { fontSize: 13, color: '#333', marginBottom: 2 },
-  utilDays: { fontSize: 13, color: '#666', marginBottom: 4 },
-  tapHint: { fontSize: 11, color: '#aaa', marginTop: 2, fontStyle: 'italic' },
+  utilPercent: { fontSize: 13, marginBottom: 2 },
+  utilDays: { fontSize: 13, marginBottom: 4 },
+  tapHint: { fontSize: 11, marginTop: 2, fontStyle: 'italic' },
   expandedSteps: { marginTop: 4 },
 });
