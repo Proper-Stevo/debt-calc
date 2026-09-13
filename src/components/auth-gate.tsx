@@ -216,10 +216,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       )}
 
       {mode === 'loggedOut' && (
-        <>
-          <Text style={styles.brand}>Nudge</Text>
-          <Text style={styles.title}>Welcome</Text>
-          <Text style={styles.subtitle}>Are you a returning user, or starting fresh?</Text>
+  <>
+    {/* <Text style={styles.brand}>Nudge</Text> */}
+    <Text style={styles.title}>Welcome to Nudge</Text>
+    <Text style={styles.subtitle}>Are you a returning user, or starting fresh?</Text>
           <Pressable style={styles.button} onPress={goToLogin}>
             <Text style={styles.buttonText}>I&apos;m returning</Text>
           </Pressable>
