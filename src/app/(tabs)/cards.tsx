@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable, Alert } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Pressable, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useFocusEffect, router } from 'expo-router';
@@ -17,7 +17,18 @@ export default function CardsScreen() {
     }, [])
   );
 
-  function confirmDelete(card: Card) {
+  async function confirmDelete(card: Card) {
+    // Same react-native-web limitation as edit-card.tsx: Alert.alert's
+    // custom buttons/onPress don't work on web, so branch to window.confirm.
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(`Are you sure you want to delete ${card.name}?`);
+      if (confirmed) {
+        await deleteCard(card.id);
+        setCards((prev) => prev.filter((c) => c.id !== card.id));
+      }
+      return;
+    }
+
     Alert.alert('Delete card', `Are you sure you want to delete ${card.name}?`, [
       { text: 'Cancel', style: 'cancel' },
       {

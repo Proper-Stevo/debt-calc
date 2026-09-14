@@ -184,12 +184,12 @@ export default function PlanScreen() {
     return (
       <>
         <View style={styles.numberedStep}>
-          <View style={styles.numberCircle}>
+          <View style={[styles.numberCircle, { backgroundColor: theme.accent }]}>
             <Text style={styles.numberCircleText}>1</Text>
           </View>
           <View style={styles.numberedStepText}>
-            <Text style={styles.numberedStepTitle}>Check your usage</Text>
-            <Text style={styles.numberedStepDesc}>
+            <Text style={[styles.numberedStepTitle, { color: theme.textPrimary }]}>Check your usage</Text>
+            <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>
               {row.percent !== null
                 ? `This card is at ${row.percent.toFixed(0)}% of its limit (${utilizationTier(row.percent)}).`
                 : `Add a credit limit to this card so we can calculate this.`}
@@ -198,12 +198,12 @@ export default function PlanScreen() {
         </View>
 
         <View style={styles.numberedStep}>
-          <View style={styles.numberCircle}>
+          <View style={[styles.numberCircle, { backgroundColor: theme.accent }]}>
             <Text style={styles.numberCircleText}>2</Text>
           </View>
           <View style={styles.numberedStepText}>
-            <Text style={styles.numberedStepTitle}>Know your deadline</Text>
-            <Text style={styles.numberedStepDesc}>
+            <Text style={[styles.numberedStepTitle, { color: theme.textPrimary }]}>Know your deadline</Text>
+            <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>
               {row.card.closingDate
                 ? `Your statement closes ${nextOccurrenceLabel(row.card.closingDate)}${row.days !== null ? ` (in ${row.days} ${row.days === 1 ? 'day' : 'days'})` : ''}. That's the balance your bank reports to credit bureaus - not your due date.`
                 : `Add a closing date to this card to get an exact deadline.`}
@@ -212,33 +212,33 @@ export default function PlanScreen() {
         </View>
 
         <View style={styles.numberedStep}>
-          <View style={styles.numberCircle}>
+          <View style={[styles.numberCircle, { backgroundColor: theme.accent }]}>
             <Text style={styles.numberCircleText}>3</Text>
           </View>
           <View style={styles.numberedStepText}>
-            <Text style={styles.numberedStepTitle}>Make this payment</Text>
+            <Text style={[styles.numberedStepTitle, { color: theme.textPrimary }]}>Make this payment</Text>
             {row.toGood !== null && row.toGood > 0 ? (
-              <Text style={styles.numberedStepDesc}>
+              <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>
                 Pay ${row.toGood.toLocaleString()}
                 {row.card.closingDate ? ` before ${nextOccurrenceLabel(row.card.closingDate)}` : ''} to get under 30% usage.
               </Text>
             ) : row.percent !== null ? (
-              <Text style={styles.numberedStepDescGood}>
+              <Text style={[styles.numberedStepDescGood, { color: theme.success }]}>
                 You're already under 30% - no payment needed to hit this goal.
               </Text>
             ) : (
-              <Text style={styles.numberedStepDesc}>We need a credit limit first to suggest an amount.</Text>
+              <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>We need a credit limit first to suggest an amount.</Text>
             )}
           </View>
         </View>
 
         <View style={styles.numberedStep}>
-          <View style={styles.numberCircle}>
+          <View style={[styles.numberCircle, { backgroundColor: theme.accent }]}>
             <Text style={styles.numberCircleText}>4</Text>
           </View>
           <View style={styles.numberedStepText}>
-            <Text style={styles.numberedStepTitle}>After it closes</Text>
-            <Text style={styles.numberedStepDesc}>
+            <Text style={[styles.numberedStepTitle, { color: theme.textPrimary }]}>After it closes</Text>
+            <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>
               A new billing cycle starts right away. Come back here to see your next deadline
               and keep this number low.
             </Text>
@@ -305,10 +305,10 @@ export default function PlanScreen() {
           </View>
 
           {showPlanIntro && (
-            <View style={styles.introCard}>
-              <Text style={styles.introTitle}>{PLAN_INTRO_CONTENT[strategy].title}</Text>
-              <Text style={styles.introBody}>{PLAN_INTRO_CONTENT[strategy].body}</Text>
-              <Pressable style={styles.introButton} onPress={dismissPlanIntro}>
+            <View style={[styles.introCard, { backgroundColor: theme.tipBackground, borderColor: theme.tipBorder }]}>
+              <Text style={[styles.introTitle, { color: theme.tipTextStrong }]}>{PLAN_INTRO_CONTENT[strategy].title}</Text>
+              <Text style={[styles.introBody, { color: theme.tipText }]}>{PLAN_INTRO_CONTENT[strategy].body}</Text>
+              <Pressable style={[styles.introButton, { backgroundColor: theme.tipTextStrong }]} onPress={dismissPlanIntro}>
                 <Text style={styles.introButtonText}>Got it</Text>
               </Pressable>
             </View>
@@ -321,28 +321,28 @@ export default function PlanScreen() {
               ListHeaderComponent={
                 <>
                   {mostUrgent && (
-                    <View style={styles.stepCard}>
+                    <View style={[styles.stepCard, { backgroundColor: theme.accentBackground, borderColor: theme.accentBorder }]}>
                       <Pressable
                         style={styles.stepCardHeader}
                         onPress={() => setPlanExpanded(!planExpanded)}
                       >
                         <View>
-                          <Text style={styles.stepLabel}>YOUR CREDIT PLAN</Text>
-                          <Text style={styles.stepCardName}>{mostUrgent.card.name}</Text>
+                          <Text style={[styles.stepLabel, { color: theme.accent }]}>YOUR CREDIT PLAN</Text>
+                          <Text style={[styles.stepCardName, { color: theme.textPrimary }]}>{mostUrgent.card.name}</Text>
                         </View>
-                        <Text style={styles.stepCardChevron}>{planExpanded ? '\u2303' : '\u2304'}</Text>
+                        <Text style={[styles.stepCardChevron, { color: theme.textMuted }]}>{planExpanded ? '\u2303' : '\u2304'}</Text>
                       </Pressable>
 
                       {planExpanded && (
                         <>
                           <View style={styles.numberedStep}>
-                            <View style={styles.numberCircle}>
+                            <View style={[styles.numberCircle, { backgroundColor: theme.accent }]}>
                               <Text style={styles.numberCircleText}>1</Text>
                             </View>
                             <View style={styles.numberedStepText}>
-                              <Text style={styles.numberedStepTitle}>See your overall picture</Text>
+                              <Text style={[styles.numberedStepTitle, { color: theme.textPrimary }]}>See your overall picture</Text>
                               {overallUtilization !== null ? (
-                                <Text style={styles.numberedStepDesc}>
+                                <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>
                                   Across all your cards, you're using {overallUtilization.toFixed(0)}% of your
                                   total credit
                                   {projectedUtilization !== null && projectedUtilization < overallUtilization
@@ -350,28 +350,29 @@ export default function PlanScreen() {
                                     : '.'}
                                 </Text>
                               ) : (
-                                <Text style={styles.numberedStepDesc}>
+                                <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>
                                   Add credit limits to your cards to see this.
                                 </Text>
                               )}
 
                               <View style={styles.scoreInputRow}>
-                                <Text style={styles.scoreInputLabel}>Your current credit score</Text>
+                                <Text style={[styles.scoreInputLabel, { color: theme.textSecondary }]}>Your current credit score</Text>
                                 <TextInput
-                                  style={styles.scoreInput}
+                                  style={[styles.scoreInput, { backgroundColor: theme.cardInnerBackground, borderColor: theme.border, color: theme.textPrimary }]}
                                   value={creditScoreInput}
                                   onChangeText={setCreditScoreInput}
                                   placeholder="e.g. 620"
+                                  placeholderTextColor={theme.textFaint}
                                   keyboardType="number-pad"
                                   maxLength={3}
                                 />
-                                <Pressable style={styles.scoreSaveButton} onPress={saveCreditScore}>
+                                <Pressable style={[styles.scoreSaveButton, { backgroundColor: theme.accent }]} onPress={saveCreditScore}>
                                   <Text style={styles.scoreSaveButtonText}>Save</Text>
                                 </Pressable>
                               </View>
 
                               {scoreEstimate ? (
-                                <Text style={styles.scoreEstimateText}>
+                                <Text style={[styles.scoreEstimateText, { color: theme.accent }]}>
                                   Fixing {mostUrgent.card.name} alone could move your score up by roughly{' '}
                                   {scoreEstimate.lowPoints}-{scoreEstimate.highPoints} points
                                   {savedCreditScore
@@ -379,18 +380,18 @@ export default function PlanScreen() {
                                     : '.'}
                                 </Text>
                               ) : mostUrgent && mostUrgent.impact > 0 ? (
-                                <Text style={styles.scoreEstimateTextMuted}>
+                                <Text style={[styles.scoreEstimateTextMuted, { color: theme.textMuted }]}>
                                   Paying this down helps your usage, but the improvement isn't large enough
                                   to give a reliable point estimate.
                                 </Text>
                               ) : mostUrgent && mostUrgent.percent !== null ? (
-                                <Text style={styles.scoreEstimateTextMuted}>
+                                <Text style={[styles.scoreEstimateTextMuted, { color: theme.textMuted }]}>
                                   This card is already in good shape - no score estimate needed here.
                                 </Text>
                               ) : null}
 
                               {(scoreEstimate || (mostUrgent && mostUrgent.impact > 0)) && (
-                                <Text style={styles.scoreDisclaimer}>
+                                <Text style={[styles.scoreDisclaimer, { color: theme.disclaimerText }]}>
                                   *This is a rough estimate based on published patterns, not a guarantee -
                                   your real results depend on your full credit history, payment record, and
                                   other factors this app doesn't track.
@@ -400,12 +401,12 @@ export default function PlanScreen() {
                           </View>
 
                           <View style={styles.numberedStep}>
-                            <View style={styles.numberCircle}>
+                            <View style={[styles.numberCircle, { backgroundColor: theme.accent }]}>
                               <Text style={styles.numberCircleText}>2</Text>
                             </View>
                             <View style={styles.numberedStepText}>
-                              <Text style={styles.numberedStepTitle}>Your priority card</Text>
-                              <Text style={styles.numberedStepDesc}>
+                              <Text style={[styles.numberedStepTitle, { color: theme.textPrimary }]}>Your priority card</Text>
+                              <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>
                                 {mostUrgent.percent !== null
                                   ? `${mostUrgent.card.name} is at ${mostUrgent.percent.toFixed(0)}% usage. `
                                   : ''}
@@ -417,12 +418,12 @@ export default function PlanScreen() {
                           </View>
 
                           <View style={styles.numberedStep}>
-                            <View style={styles.numberCircle}>
+                            <View style={[styles.numberCircle, { backgroundColor: theme.accent }]}>
                               <Text style={styles.numberCircleText}>3</Text>
                             </View>
                             <View style={styles.numberedStepText}>
-                              <Text style={styles.numberedStepTitle}>Know your deadline</Text>
-                              <Text style={styles.numberedStepDesc}>
+                              <Text style={[styles.numberedStepTitle, { color: theme.textPrimary }]}>Know your deadline</Text>
+                              <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>
                                 {mostUrgent.card.closingDate
                                   ? `Your statement closes ${nextOccurrenceLabel(mostUrgent.card.closingDate)}${mostUrgent.days !== null ? ` (in ${mostUrgent.days} ${mostUrgent.days === 1 ? 'day' : 'days'})` : ''}. That's the balance your bank reports to credit bureaus - not your due date.`
                                   : `Add a closing date to this card to get an exact deadline.`}
@@ -431,22 +432,22 @@ export default function PlanScreen() {
                           </View>
 
                           <View style={styles.numberedStep}>
-                            <View style={styles.numberCircle}>
+                            <View style={[styles.numberCircle, { backgroundColor: theme.accent }]}>
                               <Text style={styles.numberCircleText}>4</Text>
                             </View>
                             <View style={styles.numberedStepText}>
-                              <Text style={styles.numberedStepTitle}>Make this payment</Text>
+                              <Text style={[styles.numberedStepTitle, { color: theme.textPrimary }]}>Make this payment</Text>
                               {mostUrgent.toGood !== null && mostUrgent.toGood > 0 ? (
-                                <Text style={styles.numberedStepDesc}>
+                                <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>
                                   Pay ${mostUrgent.toGood.toLocaleString()}
                                   {mostUrgent.card.closingDate ? ` before ${nextOccurrenceLabel(mostUrgent.card.closingDate)}` : ''} to get under 30% usage.
                                 </Text>
                               ) : mostUrgent.percent !== null ? (
-                                <Text style={styles.numberedStepDescGood}>
+                                <Text style={[styles.numberedStepDescGood, { color: theme.success }]}>
                                   You're already under 30% - no payment needed to hit this goal.
                                 </Text>
                               ) : (
-                                <Text style={styles.numberedStepDesc}>
+                                <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>
                                   We need a credit limit first to suggest an amount.
                                 </Text>
                               )}
@@ -454,12 +455,12 @@ export default function PlanScreen() {
                           </View>
 
                           <View style={styles.numberedStep}>
-                            <View style={styles.numberCircle}>
+                            <View style={[styles.numberCircle, { backgroundColor: theme.accent }]}>
                               <Text style={styles.numberCircleText}>5</Text>
                             </View>
                             <View style={styles.numberedStepText}>
-                              <Text style={styles.numberedStepTitle}>After it closes</Text>
-                              <Text style={styles.numberedStepDesc}>
+                              <Text style={[styles.numberedStepTitle, { color: theme.textPrimary }]}>After it closes</Text>
+                              <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>
                                 A new billing cycle starts right away. Come back here to see your next
                                 priority card.
                               </Text>
@@ -467,17 +468,17 @@ export default function PlanScreen() {
                           </View>
 
                           <View style={styles.numberedStep}>
-                            <View style={styles.numberCircle}>
+                            <View style={[styles.numberCircle, { backgroundColor: theme.accent }]}>
                               <Text style={styles.numberCircleText}>6</Text>
                             </View>
                             <View style={styles.numberedStepText}>
-                              <Text style={styles.numberedStepTitle}>Want to work on a different card?</Text>
-                              <Text style={styles.numberedStepDesc}>
+                              <Text style={[styles.numberedStepTitle, { color: theme.textPrimary }]}>Want to work on a different card?</Text>
+                              <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>
                                 You can choose a different card to prioritize instead of the one picked
                                 automatically.
                               </Text>
                               <Pressable
-                                style={styles.changeButton}
+                                style={[styles.changeButton, { backgroundColor: theme.accent }]}
                                 onPress={() => setPickerOpen(!pickerOpen)}
                               >
                                 <Text style={styles.changeButtonText}>
@@ -485,31 +486,31 @@ export default function PlanScreen() {
                                 </Text>
                               </Pressable>
                               {pickerOpen && (
-                                <View style={styles.pickerList}>
+                                <View style={[styles.pickerList, { backgroundColor: theme.cardInnerBackground, borderColor: theme.border }]}>
                                   {cards.map((c) => (
                                     <Pressable
                                       key={c.id}
-                                      style={styles.pickerRow}
+                                      style={[styles.pickerRow, { borderBottomColor: theme.border }]}
                                       onPress={() => {
                                         setManualTargetId(c.id);
                                         setPickerOpen(false);
                                       }}
                                     >
-                                      <Text style={styles.pickerRowText}>{c.name}</Text>
+                                      <Text style={[styles.pickerRowText, { color: theme.textPrimary }]}>{c.name}</Text>
                                       {c.id === mostUrgent.card.id && (
-                                        <Text style={styles.pickerCheck}>&#10003;</Text>
+                                        <Text style={[styles.pickerCheck, { color: theme.accent }]}>&#10003;</Text>
                                       )}
                                     </Pressable>
                                   ))}
                                   {manualTargetId && (
                                     <Pressable
-                                      style={styles.pickerRow}
+                                      style={[styles.pickerRow, { borderBottomColor: theme.border }]}
                                       onPress={() => {
                                         setManualTargetId(null);
                                         setPickerOpen(false);
                                       }}
                                     >
-                                      <Text style={styles.pickerResetText}>Use automatic pick instead</Text>
+                                      <Text style={[styles.pickerResetText, { color: theme.textMuted }]}>Use automatic pick instead</Text>
                                     </Pressable>
                                   )}
                                 </View>
@@ -567,25 +568,25 @@ export default function PlanScreen() {
               ListHeaderComponent={
                 <>
                   {displayTarget && (
-                    <View style={styles.stepCard}>
+                    <View style={[styles.stepCard, { backgroundColor: theme.accentBackground, borderColor: theme.accentBorder }]}>
                       <Pressable
                         style={styles.stepCardHeader}
                         onPress={() => setPlanExpanded(!planExpanded)}
                       >
-                        <Text style={styles.stepLabel}>THIS MONTH</Text>
-                        <Text style={styles.stepCardChevron}>{planExpanded ? '\u2303' : '\u2304'}</Text>
+                        <Text style={[styles.stepLabel, { color: theme.accent }]}>THIS MONTH</Text>
+                        <Text style={[styles.stepCardChevron, { color: theme.textMuted }]}>{planExpanded ? '\u2303' : '\u2304'}</Text>
                       </Pressable>
 
                       {planExpanded && (
                         <>
                           <View style={styles.numberedStep}>
-                            <View style={styles.numberCircle}>
+                            <View style={[styles.numberCircle, { backgroundColor: theme.accent }]}>
                               <Text style={styles.numberCircleText}>1</Text>
                             </View>
                             <View style={styles.numberedStepText}>
-                              <Text style={styles.numberedStepTitle}>See where your debt sits</Text>
+                              <Text style={[styles.numberedStepTitle, { color: theme.textPrimary }]}>See where your debt sits</Text>
                               {mostDebtCard && (
-                                <Text style={styles.numberedStepDesc}>
+                                <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>
                                   You owe the most on {mostDebtCard.name} (${mostDebtCard.balance.toLocaleString()}).
                                 </Text>
                               )}
@@ -593,12 +594,12 @@ export default function PlanScreen() {
                           </View>
 
                           <View style={styles.numberedStep}>
-                            <View style={styles.numberCircle}>
+                            <View style={[styles.numberCircle, { backgroundColor: theme.accent }]}>
                               <Text style={styles.numberCircleText}>2</Text>
                             </View>
                             <View style={styles.numberedStepText}>
-                              <Text style={styles.numberedStepTitle}>Your target this month</Text>
-                              <Text style={styles.numberedStepDesc}>
+                              <Text style={[styles.numberedStepTitle, { color: theme.textPrimary }]}>Your target this month</Text>
+                              <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>
                                 {manualTargetId
                                   ? `You chose to focus on ${displayTarget.name} first.`
                                   : strategy === 'avalanche'
@@ -609,16 +610,16 @@ export default function PlanScreen() {
                           </View>
 
                           <View style={styles.numberedStep}>
-                            <View style={styles.numberCircle}>
+                            <View style={[styles.numberCircle, { backgroundColor: theme.accent }]}>
                               <Text style={styles.numberCircleText}>3</Text>
                             </View>
                             <View style={styles.numberedStepText}>
-                              <Text style={styles.numberedStepTitle}>Want to work on a different card?</Text>
-                              <Text style={styles.numberedStepDesc}>
+                              <Text style={[styles.numberedStepTitle, { color: theme.textPrimary }]}>Want to work on a different card?</Text>
+                              <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>
                                 You can override the automatic pick and choose which card to focus on instead.
                               </Text>
                               <Pressable
-                                style={styles.changeButton}
+                                style={[styles.changeButton, { backgroundColor: theme.accent }]}
                                 onPress={() => setPickerOpen(!pickerOpen)}
                               >
                                 <Text style={styles.changeButtonText}>
@@ -626,29 +627,29 @@ export default function PlanScreen() {
                                 </Text>
                               </Pressable>
                               {pickerOpen && (
-                                <View style={styles.pickerList}>
+                                <View style={[styles.pickerList, { backgroundColor: theme.cardInnerBackground, borderColor: theme.border }]}>
                                   {cards.map((c) => (
                                     <Pressable
                                       key={c.id}
-                                      style={styles.pickerRow}
+                                      style={[styles.pickerRow, { borderBottomColor: theme.border }]}
                                       onPress={() => {
                                         setManualTargetId(c.id === displayTarget.id && manualTargetId ? null : c.id);
                                         setPickerOpen(false);
                                       }}
                                     >
-                                      <Text style={styles.pickerRowText}>{c.name}</Text>
-                                      {c.id === displayTarget.id && <Text style={styles.pickerCheck}>&#10003;</Text>}
+                                      <Text style={[styles.pickerRowText, { color: theme.textPrimary }]}>{c.name}</Text>
+                                      {c.id === displayTarget.id && <Text style={[styles.pickerCheck, { color: theme.accent }]}>&#10003;</Text>}
                                     </Pressable>
                                   ))}
                                   {manualTargetId && (
                                     <Pressable
-                                      style={styles.pickerRow}
+                                      style={[styles.pickerRow, { borderBottomColor: theme.border }]}
                                       onPress={() => {
                                         setManualTargetId(null);
                                         setPickerOpen(false);
                                       }}
                                     >
-                                      <Text style={styles.pickerResetText}>Use automatic pick instead</Text>
+                                      <Text style={[styles.pickerResetText, { color: theme.textMuted }]}>Use automatic pick instead</Text>
                                     </Pressable>
                                   )}
                                 </View>
@@ -657,24 +658,24 @@ export default function PlanScreen() {
                           </View>
 
                           <View style={styles.numberedStep}>
-                            <View style={styles.numberCircle}>
+                            <View style={[styles.numberCircle, { backgroundColor: theme.accent }]}>
                               <Text style={styles.numberCircleText}>4</Text>
                             </View>
                             <View style={styles.numberedStepText}>
-                              <Text style={styles.numberedStepTitle}>Make this payment</Text>
-                              <Text style={styles.numberedStepDesc}>
+                              <Text style={[styles.numberedStepTitle, { color: theme.textPrimary }]}>Make this payment</Text>
+                              <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>
                                 Pay the minimum on every other card, and put your extra ${extraPayment} toward {displayTarget.name}.
                               </Text>
                             </View>
                           </View>
 
                           <View style={styles.numberedStep}>
-                            <View style={styles.numberCircle}>
+                            <View style={[styles.numberCircle, { backgroundColor: theme.accent }]}>
                               <Text style={styles.numberCircleText}>5</Text>
                             </View>
                             <View style={styles.numberedStepText}>
-                              <Text style={styles.numberedStepTitle}>What happens next</Text>
-                              <Text style={styles.numberedStepDesc}>
+                              <Text style={[styles.numberedStepTitle, { color: theme.textPrimary }]}>What happens next</Text>
+                              <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>
                                 Once {displayTarget.name} is paid off, its payment rolls onto your next
                                 card automatically. Keep this up and you'll be debt-free by{' '}
                                 {result ? formatPayoffDate(result.monthsToPayoff) : 'your target date'}.
@@ -698,10 +699,10 @@ export default function PlanScreen() {
                   </View>
 
                   {result && (
-                    <View style={styles.heroCard}>
-                      <Text style={styles.heroLabel}>Debt-free by</Text>
-                      <Text style={styles.heroValue}>{formatPayoffDate(result.monthsToPayoff)}</Text>
-                      <Text style={styles.heroSub}>
+                    <View style={[styles.heroCard, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+                      <Text style={[styles.heroLabel, { color: theme.textMuted }]}>Debt-free by</Text>
+                      <Text style={[styles.heroValue, { color: theme.textPrimary }]}>{formatPayoffDate(result.monthsToPayoff)}</Text>
+                      <Text style={[styles.heroSub, { color: theme.textMuted }]}>
                         {result.monthsToPayoff} months &middot; ${result.totalInterestPaid.toLocaleString()} total interest
                       </Text>
                     </View>
@@ -760,22 +761,18 @@ const styles = StyleSheet.create({
   toggleText: { fontSize: 13 },
   toggleTextActive: { color: '#fff', fontWeight: '500' },
   explainer: { flex: 1, fontSize: 13, lineHeight: 18 },
-  // Self-contained widgets below keep their own fixed light-theme colors
-  // intentionally (yellow tip card, blue step card, dark hero card, gray
-  // utilization card) since each sets its own explicit background and is
-  // readable regardless of system light/dark mode.
+  // Colors for these widgets are now applied inline via theme values at
+  // render time (see JSX above) so they adapt to light/dark mode. Only
+  // structural/layout properties remain here.
   introCard: {
-    backgroundColor: '#fffbea',
     borderRadius: 14,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#f5e6a8',
   },
-  introTitle: { fontSize: 14, fontWeight: '700', color: '#7a5c00', marginBottom: 6 },
-  introBody: { fontSize: 13, color: '#6b5900', lineHeight: 18, marginBottom: 10 },
+  introTitle: { fontSize: 14, fontWeight: '700', marginBottom: 6 },
+  introBody: { fontSize: 13, lineHeight: 18, marginBottom: 10 },
   introButton: {
-    backgroundColor: '#7a5c00',
     borderRadius: 8,
     paddingVertical: 8,
     alignItems: 'center',
@@ -784,19 +781,16 @@ const styles = StyleSheet.create({
   },
   introButtonText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   stepCard: {
-    backgroundColor: '#eaf3ff',
     borderRadius: 14,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#c9e0ff',
   },
-  stepLabel: { fontSize: 11, fontWeight: '700', color: '#1a5fb4', letterSpacing: 0.5, marginBottom: 6 },
+  stepLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 6 },
   stepCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  stepCardName: { fontSize: 18, fontWeight: '600', marginTop: 2, color: '#111' },
-  stepCardChevron: { fontSize: 14, color: '#7395c4' },
+  stepCardName: { fontSize: 18, fontWeight: '600', marginTop: 2 },
+  stepCardChevron: { fontSize: 14 },
   changeButton: {
-    backgroundColor: '#1a5fb4',
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -805,11 +799,9 @@ const styles = StyleSheet.create({
   },
   changeButtonText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   pickerList: {
-    backgroundColor: '#fff',
     borderRadius: 10,
     marginTop: 8,
     borderWidth: 1,
-    borderColor: '#dbe8fb',
     overflow: 'hidden',
   },
   pickerRow: {
@@ -819,17 +811,15 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#eef4fc',
   },
-  pickerRowText: { fontSize: 14, color: '#111' },
-  pickerCheck: { fontSize: 14, color: '#1a5fb4', fontWeight: '700' },
-  pickerResetText: { fontSize: 13, color: '#888', fontStyle: 'italic' },
+  pickerRowText: { fontSize: 14 },
+  pickerCheck: { fontSize: 14, fontWeight: '700' },
+  pickerResetText: { fontSize: 13, fontStyle: 'italic' },
   numberedStep: { flexDirection: 'row', marginTop: 14 },
   numberCircle: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: '#1a5fb4',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
@@ -837,42 +827,38 @@ const styles = StyleSheet.create({
   },
   numberCircleText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   numberedStepText: { flex: 1 },
-  numberedStepTitle: { fontSize: 14, fontWeight: '600', color: '#111', marginBottom: 2 },
-  numberedStepDesc: { fontSize: 13, color: '#444', lineHeight: 18 },
-  numberedStepDescGood: { fontSize: 13, color: '#1a7f37', fontWeight: '500', lineHeight: 18 },
-  scoreEstimateText: { fontSize: 13, color: '#1a5fb4', fontWeight: '500', lineHeight: 18, marginTop: 6 },
-  scoreEstimateTextMuted: { fontSize: 13, color: '#888', lineHeight: 18, marginTop: 6, fontStyle: 'italic' },
+  numberedStepTitle: { fontSize: 14, fontWeight: '600', marginBottom: 2 },
+  numberedStepDesc: { fontSize: 13, lineHeight: 18 },
+  numberedStepDescGood: { fontSize: 13, fontWeight: '500', lineHeight: 18 },
+  scoreEstimateText: { fontSize: 13, fontWeight: '500', lineHeight: 18, marginTop: 6 },
+  scoreEstimateTextMuted: { fontSize: 13, lineHeight: 18, marginTop: 6, fontStyle: 'italic' },
   scoreInputRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  scoreInputLabel: { fontSize: 12, color: '#666' },
+  scoreInputLabel: { fontSize: 12 },
   scoreInput: {
     borderWidth: 1,
-    borderColor: '#c9e0ff',
     borderRadius: 8,
     paddingVertical: 6,
     paddingHorizontal: 10,
     fontSize: 13,
     width: 70,
-    backgroundColor: '#fff',
-    color: '#111',
   },
   scoreSaveButton: {
-    backgroundColor: '#1a5fb4',
     borderRadius: 8,
     paddingVertical: 7,
     paddingHorizontal: 14,
   },
   scoreSaveButtonText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  scoreDisclaimer: { fontSize: 11, color: '#8098bd', lineHeight: 15, marginTop: 8, fontStyle: 'italic' },
+  scoreDisclaimer: { fontSize: 11, lineHeight: 15, marginTop: 8, fontStyle: 'italic' },
   dialWrap: { alignItems: 'center', marginBottom: 20 },
   heroCard: {
-    backgroundColor: '#111',
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
+    borderWidth: 1,
   },
-  heroLabel: { color: '#aaa', fontSize: 13, marginBottom: 4 },
-  heroValue: { color: '#fff', fontSize: 26, fontWeight: '600', marginBottom: 6 },
-  heroSub: { color: '#ccc', fontSize: 13 },
+  heroLabel: { fontSize: 13, marginBottom: 4 },
+  heroValue: { fontSize: 26, fontWeight: '600', marginBottom: 6 },
+  heroSub: { fontSize: 13 },
   orderLabel: { fontSize: 13, marginBottom: 8 },
   orderRow: {
     paddingVertical: 12,

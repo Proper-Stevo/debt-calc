@@ -18,6 +18,10 @@ const lightColors = {
   success: '#1a7f37',
   disclaimerText: '#aaaaaa',
   scoreMuted: '#8098bd',
+  tipBackground: '#fffbea',
+  tipBorder: '#f5e6a8',
+  tipText: '#6b5900',
+  tipTextStrong: '#7a5c00',
 };
 
 const darkColors = {
@@ -35,6 +39,10 @@ const darkColors = {
   success: '#3ddc65',
   disclaimerText: '#7a7a7a',
   scoreMuted: '#9db3d4',
+  tipBackground: '#3a2f00',
+  tipBorder: '#5c4b00',
+  tipText: '#e8c94d',
+  tipTextStrong: '#f0d878',
 };
 
 export type Theme = typeof lightColors;

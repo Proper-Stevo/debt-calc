@@ -45,7 +45,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "predeploy": "expo export --platform web && touch dist/.nojekyll",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist --dotfiles"
   },
   "private": true
 }

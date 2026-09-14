@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Pressable, Alert, Platform, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { getCard, updateCard, deleteCard } from '@/lib/storage';
 import { useTheme } from '@/lib/theme';
@@ -77,7 +77,20 @@ export default function EditCardScreen() {
     router.back();
   }
 
-  function handleDelete() {
+  async function handleDelete() {
+    // react-native-web's Alert.alert doesn't support multi-button dialogs -
+    // it falls back to a plain window.alert() and silently drops the
+    // Cancel/Delete buttons and their onPress callbacks. Use the browser's
+    // real confirm() on web instead, which returns a boolean we can act on.
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(`Are you sure you want to delete ${name}?`);
+      if (confirmed) {
+        await deleteCard(id);
+        router.back();
+      }
+      return;
+    }
+
     Alert.alert('Delete card', `Are you sure you want to delete ${name}?`, [
       { text: 'Cancel', style: 'cancel' },
       {
