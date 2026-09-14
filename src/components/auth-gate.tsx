@@ -30,6 +30,8 @@ const ONBOARDING_SLIDES = [
   },
 ];
 
+const isWeb = Platform.OS === 'web';
+
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const theme = useTheme();
   const [mode, setMode] = useState<Mode>('loading');
@@ -38,7 +40,16 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
 
+  // On web, expo-secure-store / expo-local-authentication don't reliably work
+  // in a browser, and the outer WebPasswordGate is already the privacy layer
+  // for testers. So web always starts at the welcome/onboarding walkthrough
+  // (no PIN typing, no biometric), while native iOS/Android keeps the full
+  // PIN + biometric flow exactly as before.
   useEffect(() => {
+    if (isWeb) {
+      setMode('welcome');
+      return;
+    }
     (async () => {
       const pinExists = await hasPin();
       if (!pinExists) {
@@ -51,20 +62,19 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  // On the web build, the outer WebPasswordGate is already the privacy layer
-  // for testers. expo-secure-store and expo-local-authentication (PIN storage
-  // and Face ID) don't reliably work inside a browser, so rather than risk a
-  // tester getting stuck behind a broken PIN screen, web skips this entirely
-  // and goes straight in. Native iOS/Android are completely unaffected -
-  // they still get the full PIN + biometric flow exactly as before. This check
-  // runs after all hooks are declared, so it doesn't break React's rules of hooks.
-  if (Platform.OS === 'web') {
-    return <AuthContext.Provider value={{ lock: () => {}, resetApp: async () => {} }}>{children}</AuthContext.Provider>;
-  }
-
   async function attemptBiometric() {
     const success = await tryBiometricUnlock();
     if (success) setMode('unlocked');
+  }
+
+  function handleGetStarted() {
+    if (isWeb) {
+      // Skip PIN creation entirely on web - go straight into the walkthrough.
+      setOnboardingStep(0);
+      setMode('onboarding');
+    } else {
+      setMode('create');
+    }
   }
 
   function handleCreateSubmit() {
@@ -104,7 +114,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   function logOut() {
     setInput('');
-    setMode('loggedOut');
+    setMode(isWeb ? 'welcome' : 'loggedOut');
   }
 
   function goToLogin() {
@@ -113,7 +123,9 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   async function resetApp() {
-    await clearPin();
+    if (!isWeb) {
+      await clearPin();
+    }
     await clearCards();
     await clearPlanIntroFlag();
     setInput('');
@@ -153,7 +165,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
             This app gives general estimates based on info you enter and public
             research - not financial or credit advice.
           </Text>
-          <Pressable style={[styles.button, { backgroundColor: theme.accent }]} onPress={() => setMode('create')}>
+          <Pressable style={[styles.button, { backgroundColor: theme.accent }]} onPress={handleGetStarted}>
             <Text style={styles.buttonText}>Get started</Text>
           </Pressable>
         </>

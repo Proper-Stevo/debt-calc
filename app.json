@@ -1,4 +1,7 @@
 {
+  "experiments": {
+  "baseUrl": "/debt-calc"
+},
   "expo": {
     "name": "Nudge",
     "slug": "Nudge",
