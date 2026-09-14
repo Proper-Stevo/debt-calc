@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { useTheme } from '@/lib/theme';
 
 interface CircularDialProps {
   value: number;
@@ -22,6 +23,7 @@ export default function CircularDial({
   size = 200,
   label = '',
 }: CircularDialProps) {
+  const theme = useTheme();
   const radius = size / 2;
   const strokeWidth = 14;
   const innerRadius = radius - strokeWidth / 2;
@@ -71,7 +73,7 @@ export default function CircularDial({
             cx={radius}
             cy={radius}
             r={innerRadius}
-            stroke="#eee"
+            stroke={theme.border}
             strokeWidth={strokeWidth}
             fill="none"
           />
@@ -79,7 +81,7 @@ export default function CircularDial({
             cx={radius}
             cy={radius}
             r={innerRadius}
-            stroke="#111"
+            stroke={theme.accent}
             strokeWidth={strokeWidth}
             fill="none"
             strokeDasharray={circumference}
@@ -90,8 +92,8 @@ export default function CircularDial({
           />
         </Svg>
         <View style={styles.centerLabel} pointerEvents="none">
-          <Text style={styles.value}>${value}</Text>
-          {label ? <Text style={styles.label}>{label}</Text> : null}
+          <Text style={[styles.value, { color: theme.textPrimary }]}>${value}</Text>
+          {label ? <Text style={[styles.label, { color: theme.textMuted }]}>{label}</Text> : null}
         </View>
       </View>
     </GestureDetector>
@@ -109,5 +111,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   value: { fontSize: 28, fontWeight: '600' },
-  label: { fontSize: 12, color: '#888', marginTop: 2 },
+  label: { fontSize: 12, marginTop: 2 },
 });
