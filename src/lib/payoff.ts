@@ -16,6 +16,9 @@ export interface PayoffResult {
   monthsToPayoff: number;
   totalInterestPaid: number;
   payoffOrder: PayoffOrderEntry[];
+  // False when payments never catch up with interest (the simulation hit its
+  // 50-year safety cap), so a "debt-free by" date would be meaningless.
+  payoffReached: boolean;
 }
 
 // A card's utilization ratio: how much of its limit is currently used.
@@ -125,5 +128,6 @@ export function calculatePayoff(
     monthsToPayoff: month,
     totalInterestPaid: Math.round(totalInterestPaid),
     payoffOrder,
+    payoffReached: remaining.length === 0,
   };
 }

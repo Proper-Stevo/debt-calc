@@ -8,6 +8,7 @@ import { calculatePayoff, pickTarget, Strategy } from '@/lib/payoff';
 import { utilizationPercent, utilizationTier, amountToReachUtilization, daysUntil, nextOccurrenceLabel, estimateScoreRange, UtilizationTier } from '@/lib/utilization';
 import CircularDial from '@/components/circular-dial';
 import { useTheme } from '@/lib/theme';
+import { getCurrentLeftover, totalMinimums } from '@/lib/finance';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -65,6 +66,40 @@ export default function PlanScreen() {
   const [showPlanIntro, setShowPlanIntro] = useState(false);
   const [creditScoreInput, setCreditScoreInput] = useState('');
   const [savedCreditScore, setSavedCreditScore] = useState<number | null>(null);
+  // This month's leftover from the Paycheck tab (null if the user hasn't filled it in).
+  // Already has card minimums, bills and spending taken out.
+  const [leftover, setLeftover] = useState<number | null>(null);
+  // Becomes true once the user drags the dial themselves, so we stop
+  // overriding it with our suggestion.
+  const [dialTouched, setDialTouched] = useState(false);
+
+  // With a paycheck entered, the dial can't go past what is actually left
+  // over each month. Without one it works as before (0-$500).
+  const dialStep = leftover !== null && leftover > 1000 ? 50 : 10;
+  const dialMax = leftover === null ? 500 : Math.max(0, Math.floor(leftover / dialStep) * dialStep);
+  // Suggest ~75% of the leftover so there is a cushion for surprises.
+  const suggestedExtra =
+    leftover === null ? 0 : Math.min(dialMax, Math.max(0, Math.floor((leftover * 0.75) / dialStep) * dialStep));
+
+  useEffect(() => {
+    setExtraPayment((prev) => {
+      if (leftover === null) return Math.min(prev, 500);
+      return dialTouched ? Math.min(prev, dialMax) : suggestedExtra;
+    });
+  }, [leftover, dialMax, dialTouched, suggestedExtra]);
+
+  function handleDialChange(value: number) {
+    setDialTouched(true);
+    setExtraPayment(value);
+  }
+
+  // What the cards add in interest each month vs. what the user pays toward
+  // them. If payments are below the interest, balances never go down.
+  const monthlyInterest = useMemo(
+    () => cards.reduce((sum, c) => sum + (c.balance * c.apr) / 1200, 0),
+    [cards]
+  );
+  const monthlyPayments = totalMinimums(cards) + extraPayment;
 
   useEffect(() => {
     getUserCreditScore().then((score) => {
@@ -105,6 +140,7 @@ export default function PlanScreen() {
   useFocusEffect(
     useCallback(() => {
       getCards().then(setCards);
+      getCurrentLeftover().then(setLeftover);
     }, [])
   );
 
@@ -678,7 +714,7 @@ export default function PlanScreen() {
                               <Text style={[styles.numberedStepDesc, { color: theme.textSecondary }]}>
                                 Once {displayTarget.name} is paid off, its payment rolls onto your next
                                 card automatically. Keep this up and you'll be debt-free by{' '}
-                                {result ? formatPayoffDate(result.monthsToPayoff) : 'your target date'}.
+                                {result && result.payoffReached ? formatPayoffDate(result.monthsToPayoff) : 'your target date'}.
                               </Text>
                             </View>
                           </View>
@@ -687,23 +723,74 @@ export default function PlanScreen() {
                     </View>
                   )}
 
-                  <View style={styles.dialWrap}>
-                    <CircularDial
-                      value={extraPayment}
-                      onChange={setExtraPayment}
-                      min={0}
-                      max={500}
-                      step={10}
-                      label="extra / month"
-                    />
-                  </View>
+                  {dialMax >= dialStep && (
+                    <View style={styles.dialWrap}>
+                      <CircularDial
+                        value={extraPayment}
+                        onChange={handleDialChange}
+                        min={0}
+                        max={dialMax}
+                        step={dialStep}
+                        label="extra / month"
+                      />
+                    </View>
+                  )}
 
-                  {result && (
+                  {leftover !== null && (
+                    <View
+                      style={[
+                        styles.leftoverHint,
+                        { backgroundColor: theme.accentBackground, borderColor: theme.accentBorder },
+                      ]}
+                    >
+                      {dialMax >= dialStep ? (
+                        <>
+                          <Text style={[styles.leftoverHintText, { color: theme.textPrimary }]}>
+                            Based on your Paycheck tab, about ${Math.round(leftover).toLocaleString()} is left
+                            this month after your card minimums, bills and spending. The dial stops at $
+                            {dialMax.toLocaleString()} so you can't plan to pay more than you have.
+                          </Text>
+                          <Pressable
+                            style={[styles.leftoverHintButton, { backgroundColor: theme.accent }]}
+                            onPress={() => {
+                              setDialTouched(false);
+                              setExtraPayment(suggestedExtra);
+                            }}
+                          >
+                            <Text style={styles.leftoverHintButtonText}>
+                              Use suggested ${suggestedExtra.toLocaleString()} (keeps a cushion)
+                            </Text>
+                          </Pressable>
+                        </>
+                      ) : (
+                        <Text style={[styles.leftoverHintText, { color: theme.textPrimary }]}>
+                          Your Paycheck tab shows nothing left over this month after card minimums, bills and
+                          spending, so there's no room for extra payments right now. The plan below uses your
+                          minimum payments only.
+                        </Text>
+                      )}
+                    </View>
+                  )}
+
+                  {result && result.payoffReached && (
                     <View style={[styles.heroCard, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
                       <Text style={[styles.heroLabel, { color: theme.textMuted }]}>Debt-free by</Text>
                       <Text style={[styles.heroValue, { color: theme.textPrimary }]}>{formatPayoffDate(result.monthsToPayoff)}</Text>
                       <Text style={[styles.heroSub, { color: theme.textMuted }]}>
                         {result.monthsToPayoff} months &middot; ${result.totalInterestPaid.toLocaleString()} total interest
+                      </Text>
+                    </View>
+                  )}
+
+                  {result && !result.payoffReached && (
+                    <View style={[styles.heroCard, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+                      <Text style={[styles.heroLabel, { color: theme.textMuted }]}>Not paid off at this pace</Text>
+                      <Text style={[styles.heroValue, { color: theme.textPrimary }]}>Interest is outrunning your payments</Text>
+                      <Text style={[styles.heroSub, { color: theme.textMuted }]}>
+                        Your cards add about ${Math.round(monthlyInterest).toLocaleString()} a month in interest, and
+                        you're paying about ${Math.round(monthlyPayments).toLocaleString()} a month. Payments need to
+                        be higher than the interest before balances start to drop. Lowering spending or adding income
+                        on the Paycheck tab are the ways to make room.
                       </Text>
                     </View>
                   )}
@@ -850,6 +937,16 @@ const styles = StyleSheet.create({
   scoreSaveButtonText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   scoreDisclaimer: { fontSize: 11, lineHeight: 15, marginTop: 8, fontStyle: 'italic' },
   dialWrap: { alignItems: 'center', marginBottom: 20 },
+  leftoverHint: { borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1 },
+  leftoverHintText: { fontSize: 13, lineHeight: 18 },
+  leftoverHintButton: {
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    alignSelf: 'flex-start',
+    marginTop: 10,
+  },
+  leftoverHintButtonText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   heroCard: {
     borderRadius: 16,
     padding: 20,

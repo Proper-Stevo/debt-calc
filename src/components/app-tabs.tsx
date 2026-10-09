@@ -61,6 +61,18 @@ export default function AppTabs() {
             ),
           }}
         />
+        <Tabs.Screen
+          name="finance"
+          options={{
+            title: 'Paycheck',
+            tabBarIcon: ({ color, size }) => (
+              <Image
+                source={require('@/assets/images/tabIcons/explore.png')}
+                style={{ width: size, height: size, tintColor: color }}
+              />
+            ),
+          }}
+        />
       </Tabs>
     );
   }
@@ -74,6 +86,13 @@ export default function AppTabs() {
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
           src={require('@/assets/images/tabIcons/home.png')}
+          renderingMode="template"
+        />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="finance">
+        <NativeTabs.Trigger.Label>Paycheck</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon
+          src={require('@/assets/images/tabIcons/explore.png')}
           renderingMode="template"
         />
       </NativeTabs.Trigger>
@@ -91,6 +110,7 @@ export default function AppTabs() {
           renderingMode="template"
         />
       </NativeTabs.Trigger>
+      
     </NativeTabs>
   );
 }

@@ -28,6 +28,9 @@ export default function AppTabs() {
           <TabTrigger name="plan" href="/plan" asChild>
             <TabButton icon={require('@/assets/images/tabIcons/explore.png')}>Plan</TabButton>
           </TabTrigger>
+          <TabTrigger name="finance" href="/finance" asChild>
+            <TabButton icon={require('@/assets/images/tabIcons/explore.png')}>Paycheck</TabButton>
+          </TabTrigger>
         </CustomTabList>
       </TabList>
     </Tabs>
