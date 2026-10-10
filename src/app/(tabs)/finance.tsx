@@ -53,6 +53,33 @@ function toItems(drafts: Draft[]): LineItem[] {
     .map((d) => ({ id: d.id, name: d.name.trim(), amount: parseNum(d.amount) }));
 }
 
+const DANGER = '#c93030';
+
+function hasDigits(text: string): boolean {
+  return /\d/.test(text);
+}
+
+// Which fields of a line are a problem. A row left completely blank isn't
+// "started", so it's ignored. A row with anything in it needs BOTH a name
+// and an amount (an amount of 0 is fine; blank is not).
+function rowProblems(d: Draft): { name: boolean; amount: boolean } {
+  const nameFilled = d.name.trim().length > 0;
+  const amountTyped = d.amount.trim().length > 0;
+  if (!nameFilled && !amountTyped) return { name: false, amount: false };
+  return { name: !nameFilled, amount: !(amountTyped && hasDigits(d.amount)) };
+}
+
+function hasRowProblem(drafts: Draft[]): boolean {
+  return drafts.some((d) => {
+    const p = rowProblems(d);
+    return p.name || p.amount;
+  });
+}
+
+function rowStarted(d: Draft): boolean {
+  return d.name.trim().length > 0 || d.amount.trim().length > 0;
+}
+
 type SectionProps = {
   title: string;
   hint: string;
@@ -64,6 +91,7 @@ type SectionProps = {
 
 function ItemSection({ title, hint, namePlaceholder, items, setItems, theme }: SectionProps) {
   const total = sumItems(toItems(items));
+  const anyProblem = hasRowProblem(items);
 
   function update(id: string, patch: Partial<Draft>) {
     setItems(items.map((d) => (d.id === id ? { ...d, ...patch } : d)));
@@ -77,40 +105,49 @@ function ItemSection({ title, hint, namePlaceholder, items, setItems, theme }: S
       </View>
       <Text style={[styles.hint, { color: theme.textMuted }]}>{hint}</Text>
 
-      {items.map((d) => (
-        <View key={d.id} style={styles.itemRow}>
-          <TextInput
-            style={[
-              styles.input,
-              styles.nameInput,
-              { backgroundColor: theme.cardInnerBackground, borderColor: theme.border, color: theme.textPrimary },
-            ]}
-            value={d.name}
-            onChangeText={(t) => update(d.id, { name: t })}
-            placeholder={namePlaceholder}
-            placeholderTextColor={theme.textFaint}
-          />
-          <TextInput
-            style={[
-              styles.input,
-              styles.amountInput,
-              { backgroundColor: theme.cardInnerBackground, borderColor: theme.border, color: theme.textPrimary },
-            ]}
-            value={d.amount}
-            onChangeText={(t) => update(d.id, { amount: t })}
-            placeholder="$0"
-            placeholderTextColor={theme.textFaint}
-            keyboardType="decimal-pad"
-          />
-          <Pressable
-            style={styles.removeButton}
-            onPress={() => setItems(items.filter((x) => x.id !== d.id))}
-            hitSlop={8}
-          >
-            <Text style={[styles.removeText, { color: theme.textFaint }]}>{'✕'}</Text>
-          </Pressable>
-        </View>
-      ))}
+      {items.map((d) => {
+        const problem = rowProblems(d);
+        return (
+          <View key={d.id} style={styles.itemRow}>
+            <TextInput
+              style={[
+                styles.input,
+                styles.nameInput,
+                { backgroundColor: theme.cardInnerBackground, borderColor: problem.name ? DANGER : theme.border, color: theme.textPrimary },
+              ]}
+              value={d.name}
+              onChangeText={(t) => update(d.id, { name: t })}
+              placeholder={namePlaceholder}
+              placeholderTextColor={problem.name ? DANGER : theme.textFaint}
+            />
+            <TextInput
+              style={[
+                styles.input,
+                styles.amountInput,
+                { backgroundColor: theme.cardInnerBackground, borderColor: problem.amount ? DANGER : theme.border, color: theme.textPrimary },
+              ]}
+              value={d.amount}
+              onChangeText={(t) => update(d.id, { amount: t })}
+              placeholder="$0"
+              placeholderTextColor={problem.amount ? DANGER : theme.textFaint}
+              keyboardType="decimal-pad"
+            />
+            <Pressable
+              style={styles.removeButton}
+              onPress={() => setItems(items.filter((x) => x.id !== d.id))}
+              hitSlop={8}
+            >
+              <Text style={[styles.removeText, { color: theme.textFaint }]}>{'✕'}</Text>
+            </Pressable>
+          </View>
+        );
+      })}
+
+      {anyProblem && (
+        <Text style={[styles.errorText, { color: DANGER }]}>
+          Every line needs both a name and an amount. Fill in the red boxes, or tap ✕ to remove the line.
+        </Text>
+      )}
 
       <Pressable onPress={() => setItems([...items, { id: newId(), name: '', amount: '' }])}>
         <Text style={[styles.addText, { color: theme.accent }]}>+ Add a line</Text>
@@ -186,11 +223,23 @@ export default function FinanceScreen() {
   );
   // (minimums is part of the record so past months keep their own number)
 
-  // Auto-save on every change.
+  // Nothing counts as filled in until it's complete. If the user has started
+  // anything (a paycheck or any line), the paycheck is required and every
+  // line needs a name and an amount. A completely empty month is fine - the
+  // whole tab is optional - and just isn't saved.
+  const linesStarted = fixed.some(rowStarted) || flexible.some(rowStarted);
+  const paycheckStarted = paycheck.trim().length > 0;
+  const paycheckValid = hasDigits(paycheck) && parseNum(paycheck) > 0;
+  const paycheckProblem = (paycheckStarted || linesStarted) && !paycheckValid;
+  const lineProblem = hasRowProblem(fixed) || hasRowProblem(flexible);
+  const formValid = !paycheckProblem && !lineProblem;
+
+  // Auto-save, but only while everything is complete, so half-filled numbers
+  // never reach the Plan tab.
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || !formValid) return;
     saveMonth(record);
-  }, [record, loaded]);
+  }, [record, loaded, formValid]);
 
   const income = monthlyIncome(record);
   const fixedTotal = sumItems(record.fixed);
@@ -198,13 +247,14 @@ export default function FinanceScreen() {
   const leftover = leftoverFor(record);
   const hasPaycheck = record.paycheck > 0;
 
-  // Earlier months for the history list, with this month's live numbers merged in.
+  // Months for the history list. While the form is incomplete, show what's
+  // actually saved for this month rather than the half-typed numbers.
   const history = useMemo(() => {
-    const merged = { ...saved, [month]: record };
+    const merged = formValid ? { ...saved, [month]: record } : saved;
     return Object.values(merged)
       .filter((r) => r.paycheck > 0)
       .sort((a, b) => (a.month < b.month ? 1 : -1));
-  }, [saved, month, record]);
+  }, [saved, month, record, formValid]);
 
   // Offer to start from last month's lines when this month is still blank.
   const previous = saved[shiftMonth(month, -1)];
@@ -260,7 +310,8 @@ export default function FinanceScreen() {
               Your take-home pay (what hits your bank account after taxes), minus your card minimums, minus
               the bills you have to pay, minus your everyday spending, equals your leftover. That leftover is
               the most you could put toward your cards on top of your minimums without squeezing your
-              day-to-day life. It is optional and only an estimate, so change it any time.
+              day-to-day life. The whole tab is optional, but once you start, fill in everything: your pay, and
+              a name and an amount for every line. It's only an estimate, so change it any time.
             </Text>
             <Pressable style={[styles.tipButton, { backgroundColor: theme.tipTextStrong }]} onPress={dismissIntro}>
               <Text style={[styles.tipButtonText, { color: theme.background }]}>Got it</Text>
@@ -287,14 +338,19 @@ export default function FinanceScreen() {
           <TextInput
             style={[
               styles.input,
-              { backgroundColor: theme.cardInnerBackground, borderColor: theme.border, color: theme.textPrimary },
+              { backgroundColor: theme.cardInnerBackground, borderColor: paycheckProblem ? DANGER : theme.border, color: theme.textPrimary },
             ]}
             value={paycheck}
             onChangeText={setPaycheck}
             placeholder="Take-home per paycheck, e.g. 450"
-            placeholderTextColor={theme.textFaint}
+            placeholderTextColor={paycheckProblem ? DANGER : theme.textFaint}
             keyboardType="decimal-pad"
           />
+          {paycheckProblem && (
+            <Text style={[styles.errorText, { color: DANGER }]}>
+              Required. Enter your take-home pay for each paycheck (more than $0).
+            </Text>
+          )}
           <View style={styles.freqRow}>
             {FREQUENCIES.map((f) => (
               <Pressable
@@ -374,7 +430,12 @@ export default function FinanceScreen() {
           ]}
         >
           <Text style={[styles.leftoverLabel, { color: theme.accent }]}>LEFTOVER THIS MONTH</Text>
-          {!hasPaycheck ? (
+          {!formValid ? (
+            <Text style={[styles.leftoverNote, { color: DANGER }]}>
+              Not saved yet. Finish everything marked in red, a take-home amount plus a name and an amount for
+              each line, and your leftover will show up here.
+            </Text>
+          ) : !hasPaycheck ? (
             <Text style={[styles.leftoverNote, { color: theme.textSecondary }]}>
               Add your paycheck above to see how much you have left each month.
             </Text>
@@ -461,6 +522,7 @@ const styles = StyleSheet.create({
   },
   tipButtonText: { fontSize: 12, fontWeight: '600' },
   section: { borderRadius: 14, padding: 16, marginBottom: 16 },
+  errorText: { fontSize: 12, lineHeight: 17, marginTop: 4, marginBottom: 6 },
   takeHomeBox: { borderRadius: 10, padding: 12, borderWidth: 1, marginTop: 8, marginBottom: 12 },
   takeHomeTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 4 },
   takeHomeBody: { fontSize: 12, lineHeight: 17 },

@@ -10,6 +10,7 @@ import {
   tryBiometricUnlock,
 } from '@/lib/auth';
 import { clearCards, clearPlanIntroFlag } from '@/lib/storage';
+import { clearFinance } from '@/lib/finance';
 import { AuthContext } from '@/lib/auth-context';
 import { useTheme } from '@/lib/theme';
 
@@ -27,6 +28,10 @@ const ONBOARDING_SLIDES = [
   {
     title: 'Follow your plan',
     body: "Each month we'll tell you exactly what to pay and where. Check back anytime on the Plan tab.",
+  },
+  {
+    title: 'Your plan is only as good as what you enter',
+    body: "Your payoff date, interest estimate, and suggested payment are all built from the numbers you type in. Wrong balances or a guessed paycheck will throw the plan off, so use real numbers. For your paycheck, enter take-home pay, what actually lands in your bank account after taxes.",
   },
 ];
 
@@ -127,6 +132,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       await clearPin();
     }
     await clearCards();
+    await clearFinance();
     await clearPlanIntroFlag();
     setInput('');
     setFirstPin('');
@@ -163,7 +169,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
           </Text>
           <Text style={[styles.disclaimer, { color: theme.disclaimerText }]}>
             This app gives general estimates based on info you enter and public
-            research - not financial or credit advice.
+            research - not financial or credit advice. Your plan is only as
+            accurate as what you put in, so enter real numbers where you can.
           </Text>
           <Pressable style={[styles.button, { backgroundColor: theme.accent }]} onPress={handleGetStarted}>
             <Text style={styles.buttonText}>Get started</Text>

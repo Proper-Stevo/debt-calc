@@ -22,14 +22,14 @@ export default function AppTabs() {
           <TabTrigger name="index" href="/" asChild>
             <TabButton icon={require('@/assets/images/tabIcons/home.png')}>Home</TabButton>
           </TabTrigger>
+          <TabTrigger name="finance" href="/finance" asChild>
+            <TabButton icon={require('@/assets/images/tabIcons/explore.png')}>Paycheck</TabButton>
+          </TabTrigger>
           <TabTrigger name="cards" href="/cards" asChild>
             <TabButton icon={require('@/assets/images/tabIcons/explore.png')}>Cards</TabButton>
           </TabTrigger>
           <TabTrigger name="plan" href="/plan" asChild>
             <TabButton icon={require('@/assets/images/tabIcons/explore.png')}>Plan</TabButton>
-          </TabTrigger>
-          <TabTrigger name="finance" href="/finance" asChild>
-            <TabButton icon={require('@/assets/images/tabIcons/explore.png')}>Paycheck</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>
